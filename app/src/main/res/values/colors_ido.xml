@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ido_primary">#0E5A6B</color>
+    <color name="ido_primary_dark">#083943</color>
+    <color name="ido_secondary">#DFAF2B</color>
+    <color name="ido_background">#F4F1E8</color>
+    <color name="ido_surface">#FFFDF9</color>
+    <color name="ido_text_primary">#1F2A30</color>
+    <color name="ido_text_secondary">#5E6A70</color>
+    <color name="ido_divider">#D7D1C2</color>
+    <color name="ido_summary_total_bg">#E8F0F3</color>
+    <color name="ido_summary_total_stroke">#C8D8DE</color>
+    <color name="ido_summary_total_value">#184A58</color>
+    <color name="ido_summary_returned_bg">#EAF7EE</color>
+    <color name="ido_summary_returned_stroke">#BFE1CB</color>
+    <color name="ido_summary_returned_value">#1D6B3B</color>
+    <color name="ido_summary_missing_bg">#FFF4DF</color>
+    <color name="ido_summary_missing_stroke">#E9CC92</color>
+    <color name="ido_summary_missing_value">#9A5E12</color>
+    <color name="ido_summary_outside_bg">#FCEBEB</color>
+    <color name="ido_summary_outside_stroke">#E4B9B9</color>
+    <color name="ido_summary_outside_value">#A23535</color>
+</resources>

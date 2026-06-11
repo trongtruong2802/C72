@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="checkout_title_screen">Check Out / Check In</string>
+    <string name="checkout_tab_out">Check Out</string>
+    <string name="checkout_tab_in">Check In</string>
+
+    <string name="checkout_section_data">Scanner</string>
+    <string name="checkout_section_form">Thông tin phiếu</string>
+    <string name="checkout_section_items">Danh sách tài sản</string>
+    <string name="checkin_section_import">Phiếu check out</string>
+    <string name="checkin_section_compare">Đối chiếu scan</string>
+    <string name="checkin_section_summary">Tổng hợp</string>
+
+    <string name="checkout_summary_selected">Đã chọn</string>
+    <string name="checkout_summary_cached">Trong cache</string>
+    <string name="checkout_summary_outside_cache">Ngoài cache</string>
+
+    <string name="checkout_scanner_rfid">RFID</string>
+    <string name="checkout_scanner_qr">QR</string>
+    <string name="checkout_mode_continuous">Quét liên tục</string>
+    <string name="checkout_mode_single">Quét 1 lần</string>
+    <string name="checkout_scan_action">Start</string>
+    <string name="checkout_stop_action">Stop</string>
+    <string name="checkout_clear_action">Clear</string>
+    <string name="checkout_export_action">Export</string>
+    <string name="checkin_import_action">Import</string>
+    <string name="checkin_clear_action">Clear</string>
+    <string name="checkin_export_action">Export</string>
+    <string name="checkout_trigger_hint">Có thể bấm nút quét hoặc bóp trigger cứng trên máy.</string>
+
+    <string name="checkout_field_carrier">Người mang đi</string>
+    <string name="checkout_field_department">Bộ phận</string>
+    <string name="checkout_field_purpose">Mục đích</string>
+    <string name="checkout_field_event">Sự kiện / công tác</string>
+    <string name="checkout_field_time">Ngày mang đi</string>
+    <string name="checkout_field_expected_return">Ngày dự kiến mang về</string>
+    <string name="checkout_field_approver">Người duyệt</string>
+    <string name="checkout_field_note">Ghi chú</string>
+
+    <string name="checkout_data_status_empty">Cache runtime đang rỗng. Bạn vẫn có thể scan, nhưng item ngoài cache chỉ lưu TID hoặc Code.</string>
+    <string name="checkout_data_status_ready">Cache runtime: %1$d tài sản | Nguồn cuối: %2$s</string>
+    <string name="checkout_count_value">Số item trong phiếu: %1$d</string>
+    <string name="checkout_item_source">Nguồn quét: %1$s | Cache: %2$s</string>
+    <string name="checkout_item_owner">Người dùng: %1$s | Bộ phận: %2$s | Vị trí: %3$s</string>
+    <string name="checkout_item_meta">Loại: %1$s | Serial: %2$s</string>
+    <string name="checkout_item_scanned_at">Thời gian quét: %1$s</string>
+    <string name="checkout_remove_item">Xóa</string>
+
+    <string name="checkout_duplicate_item">Tài sản này đã có trong phiếu check out.</string>
+    <string name="checkout_added_item">Đã thêm tài sản vào phiếu.</string>
+    <string name="checkout_removed_item">Đã xóa tài sản khỏi phiếu.</string>
+    <string name="checkout_need_identifier">Không nhận đủ dữ liệu TID hoặc Code hợp lệ để thêm tài sản.</string>
+    <string name="checkout_need_carrier">Người mang đi không được để trống.</string>
+    <string name="checkout_need_department">Bộ phận không được để trống.</string>
+    <string name="checkout_need_purpose">Mục đích không được để trống.</string>
+    <string name="checkout_need_event">Sự kiện / công tác không được để trống.</string>
+    <string name="checkout_need_checkout_time">Thời gian mang đi không được để trống.</string>
+    <string name="checkout_need_expected_return">Thời gian dự kiến mang về không được để trống.</string>
+    <string name="checkout_need_approver">Người duyệt không được để trống.</string>
+    <string name="checkout_invalid_date_format">Ngày phải theo định dạng yyyy-MM-dd.</string>
+    <string name="checkout_export_empty">Chưa có tài sản để export CSV.</string>
+    <string name="checkout_export_done">Đã export CSV check out: %1$s</string>
+    <string name="checkout_export_failed">Không thể export CSV check out vào Documents/IDO Asset/.</string>
+    <string name="checkout_need_storage">Cần cấp quyền file để export vào Documents/IDO Asset/.</string>
+    <string name="checkout_scanner_rfid_ready_single">RFID sẵn sàng. Mỗi lần bấm sẽ đọc 1 thẻ theo TID.</string>
+    <string name="checkout_scanner_rfid_ready_continuous">RFID sẵn sàng. Giữ trigger để quét liên tục.</string>
+    <string name="checkout_scanner_rfid_lazy_single">RFID sẽ khởi động khi bấm Start. Mỗi lần đọc 1 thẻ theo TID.</string>
+    <string name="checkout_scanner_rfid_lazy_continuous">RFID sẽ khởi động khi bấm Start. Giữ trigger để quét liên tục.</string>
+    <string name="checkout_scanner_rfid_running">Đang quét RFID liên tục...</string>
+    <string name="checkout_scanner_qr_ready">QR sẵn sàng. Bấm trigger để quét code.</string>
+    <string name="checkout_scanner_qr_lazy">QR sẽ khởi động khi bấm Start hoặc trigger.</string>
+    <string name="checkout_scanner_qr_running">Đang chờ kết quả QR/2D...</string>
+    <string name="checkout_scanner_preparing">Đang khởi động scanner...</string>
+    <string name="checkout_scanner_rfid_done">Đã đọc RFID TID: %1$s</string>
+    <string name="checkout_scanner_qr_done">Đã đọc QR/Code: %1$s</string>
+    <string name="checkout_scanner_unknown">Scanner chưa sẵn sàng.</string>
+
+    <string name="checkin_import_status_empty">Chưa import file check out.</string>
+    <string name="checkin_import_status_done">Đã import %1$d tài sản từ file %2$s</string>
+    <string name="checkin_import_meta">Phiếu: %1$s\nNgười mang đi: %2$s\nNgày mang đi: %3$s\nNgày dự kiến về: %4$s</string>
+    <string name="checkin_import_cancelled">Đã hủy chọn file CSV.</string>
+    <string name="checkin_import_failed">Không thể import file CSV check out.</string>
+    <string name="checkin_need_import_first">Hãy import file check out trước khi đối chiếu check in.</string>
+    <string name="checkin_reset_done">Đã reset kết quả đối chiếu check in.</string>
+    <string name="checkin_duplicate_returned">Tài sản trong phiếu này đã được đánh dấu đã mang về.</string>
+    <string name="checkin_marked_returned">Đã đánh dấu tài sản mang về.</string>
+    <string name="checkin_not_in_ticket">Tài sản này không nằm trong phiếu check out.</string>
+    <string name="checkin_export_done">Đã export CSV check in: %1$s</string>
+    <string name="checkin_export_failed">Không thể export CSV check in vào Documents/IDO Asset/.</string>
+    <string name="checkin_export_empty">Chưa có dữ liệu đối chiếu để export.</string>
+
+    <string name="checkin_summary_total">Tổng trong file</string>
+    <string name="checkin_summary_returned">Đã mang về</string>
+    <string name="checkin_summary_missing">Còn thiếu</string>
+    <string name="checkin_summary_header">Tiến độ đối chiếu</string>
+    <string name="checkin_summary_headline">%1$d/%2$d tài sản đã mang về</string>
+    <string name="checkin_summary_detail">%1$d%% hoàn thành | %2$d tài sản còn thiếu</string>
+    <string name="checkin_summary_detail_empty">Import phiếu check out để bắt đầu đối chiếu.</string>
+
+    <string name="checkin_item_expected">Trong phiếu: %1$s | Khớp bằng: %2$s</string>
+    <string name="checkin_item_meta">Loại: %1$s | Serial: %2$s</string>
+    <string name="checkin_item_owner">Người dùng: %1$s | Bộ phận: %2$s | Vị trí: %3$s</string>
+    <string name="checkin_item_scan">Check-out: %1$s | Check-in: %2$s</string>
+    <string name="checkin_item_scan_empty">Chưa quét thấy khi check in</string>
+
+    <string name="common_unknown_value">-</string>
+    <string name="common_yes">Có</string>
+    <string name="common_no">Không</string>
+</resources>

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="dashboard_filter_department">Phòng ban</string>
+    <string name="dashboard_filter_location">Vị trí</string>
+    <string name="dashboard_filter_asset_type">Loại tài sản</string>
+    <string name="dashboard_filter_section_title">Bộ lọc</string>
+    <string name="dashboard_filter_section_subtitle">Chọn một hoặc nhiều điều kiện để thu hẹp dữ liệu cần tải.</string>
+    <string name="dashboard_filter_any_department">Tất cả phòng ban</string>
+    <string name="dashboard_filter_any_location">Tất cả vị trí</string>
+    <string name="dashboard_filter_any_asset_type">Tất cả loại tài sản</string>
+
+    <string name="dashboard_action_load_all">Tải toàn bộ</string>
+    <string name="dashboard_action_sync_filtered">Tải theo bộ lọc</string>
+    <string name="dashboard_action_sync_session_short">Tải theo phiên</string>
+    <string name="dashboard_action_clear_filters">Xóa bộ lọc</string>
+
+    <string name="dashboard_preview_idle">Chọn phòng ban, vị trí hoặc loại tài sản trước khi tải dữ liệu.</string>
+    <string name="dashboard_preview_checking">Đang kiểm tra số lượng dữ liệu phù hợp...</string>
+    <string name="dashboard_preview_result">Số lượng dự kiến: %1$d bản ghi | Batch %2$d | %3$s</string>
+    <string name="dashboard_preview_result_unknown">Số lượng dự kiến: chưa xác định | Batch %1$d | %2$s</string>
+
+    <string name="dashboard_progress_idle">Tiến trình đồng bộ sẽ hiển thị tại đây.</string>
+    <string name="dashboard_progress_waiting">Đang chuẩn bị truy vấn và đếm dữ liệu...</string>
+    <string name="dashboard_progress_ready">Đã xác định %1$d bản ghi. Bắt đầu tải theo batch...</string>
+    <string name="dashboard_progress_ready_unknown">Backend không trả về tổng số bản ghi. App sẽ tải cho đến khi hết dữ liệu.</string>
+    <string name="dashboard_progress_value">Đã tải %1$d/%2$d | Batch %3$d/%4$d</string>
+    <string name="dashboard_progress_value_unknown">Đã tải %1$d bản ghi | Batch %2$d</string>
+    <string name="dashboard_progress_done">Hoàn tất đồng bộ %1$d/%2$d bản ghi.</string>
+    <string name="dashboard_progress_done_unknown">Hoàn tất đồng bộ %1$d bản ghi.</string>
+    <string name="dashboard_progress_empty">Không có dữ liệu phù hợp với bộ lọc hiện tại.</string>
+    <string name="dashboard_progress_failed">Đồng bộ không thành công.</string>
+
+    <string name="dashboard_sync_in_progress_filtered">Đang đồng bộ dữ liệu theo bộ lọc: %1$s</string>
+    <string name="dashboard_sync_filter_missing">Hãy chọn ít nhất một bộ lọc trước khi tải theo bộ lọc.</string>
+    <string name="dashboard_sync_session_missing_department">Phiên làm việc hiện tại chưa có phòng ban để đồng bộ.</string>
+    <string name="dashboard_sync_stage_loading_data">Đang tải dữ liệu...</string>
+    <string name="dashboard_sync_stage_processing_data">Đang xử lý dữ liệu...</string>
+    <string name="dashboard_sync_stage_complete">Hoàn tất đồng bộ.</string>
+    <string name="dashboard_sync_stage_failed">Đồng bộ không thành công.</string>
+    <string name="dashboard_status_success">Hoàn tất</string>
+    <string name="dashboard_status_error">Lỗi đồng bộ</string>
+    <string name="dashboard_sync_error_network">Lỗi mạng: không thể kết nối máy chủ.</string>
+    <string name="dashboard_sync_error_timeout">Lỗi mạng: máy chủ phản hồi quá chậm hoặc đã hết thời gian chờ.</string>
+    <string name="dashboard_sync_error_api">Lỗi API: máy chủ trả về lỗi khi đồng bộ.</string>
+    <string name="dashboard_sync_error_parse">Lỗi dữ liệu: máy chủ trả về dữ liệu không hợp lệ.</string>
+    <string name="dashboard_sync_error_storage">Không thể lưu cache nội bộ sau khi đồng bộ.</string>
+</resources>

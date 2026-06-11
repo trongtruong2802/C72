@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="known_department_options">
+        <item>AD</item>
+        <item>BID</item>
+        <item>BOD</item>
+        <item>Finance &amp; Accountant</item>
+        <item>HR</item>
+        <item>HR &amp; Admin</item>
+        <item>IT</item>
+        <item>Operation</item>
+        <item>PD</item>
+        <item>Procurement</item>
+        <item>Production</item>
+        <item>QA</item>
+        <item>R&amp;D</item>
+        <item>Sales &amp; Marketing</item>
+        <item>Technical</item>
+    </string-array>
+
+    <string-array name="known_location_options">
+        <item>TT16</item>
+        <item>Tầng B - TT16</item>
+        <item>Tầng G - TT16</item>
+        <item>Lầu 1 - TT16</item>
+        <item>Lầu 2 - TT16</item>
+        <item>Lầu 3 - TT16</item>
+        <item>Lầu 4 - TT16</item>
+        <item>Lầu 5 - TT16</item>
+        <item>Lầu 6 - TT16</item>
+        <item>LA.Factory</item>
+        <item>Warehouse</item>
+    </string-array>
+
+    <string-array name="known_asset_type_options">
+        <item>ADAPTER</item>
+        <item>BÀN GỖ</item>
+        <item>BÀN HỌP</item>
+        <item>BÀN INOX</item>
+        <item>BÀN LÀM VIỆC</item>
+        <item>BÀN LỄ TÂN</item>
+        <item>BÀN MANAGER</item>
+        <item>BÀN NHỰA</item>
+        <item>BÀN PHÍM</item>
+        <item>BẢNG GHIM</item>
+        <item>BẢNG KÍNH</item>
+        <item>BẢNG TỪ</item>
+        <item>BÌNH CHỮA CHÁY</item>
+        <item>BỘ ÂM THANH</item>
+        <item>BỘ ĐÀM</item>
+        <item>BỒN NƯỚC</item>
+        <item>BÓNG BÀN</item>
+        <item>CÁC THIẾT BỊ LIÊN QUAN</item>
+        <item>CÁC THIẾT BỊ NƯỚC KHÁC</item>
+        <item>Cầm Tay Điện Thoại</item>
+        <item>CAMERA</item>
+        <item>CAMERA CỐ ĐỊNH</item>
+        <item>CÂN</item>
+        <item>CẦU THANG</item>
+        <item>CHÂN CAMERA</item>
+        <item>CHÂN ĐÈN</item>
+        <item>CHỐNG RUNG</item>
+        <item>CHUÔNG BÁO CHÁY</item>
+        <item>CHUỘT</item>
+        <item>CPU</item>
+        <item>ĐẦU THU</item>
+        <item>DÂY CÁP</item>
+        <item>ĐÈN</item>
+        <item>ĐIỆN THOẠI BÀN</item>
+        <item>Điện thoại di động</item>
+        <item>ĐTDĐ</item>
+        <item>DỤNG CỤ CAFÉ</item>
+        <item>Dụng cụ sửa chữa</item>
+        <item>GHẾ GỖ</item>
+        <item>GHẾ INOX</item>
+        <item>GHẾ MATXA</item>
+        <item>GHẾ NHỰA</item>
+        <item>GHẾ SOFA</item>
+        <item>GHẾ TỰA</item>
+        <item>GHẾ XOAY</item>
+        <item>GRINDER</item>
+        <item>HỘP BÁO CHÁY</item>
+        <item>HỘP ĐÈN KHẨN CẤP</item>
+        <item>HỘP MỞ CỬA KHẨN CẤP</item>
+        <item>HỘP MỞ CỬA RA VÀO TẦNG</item>
+        <item>IN BILL</item>
+        <item>IN GIẤY</item>
+        <item>IN NHÃN</item>
+        <item>KỆ INOX</item>
+        <item>KỆ NHỰA</item>
+        <item>KỆ SẮT</item>
+        <item>KÉT</item>
+        <item>KHÓA TỪ</item>
+        <item>LAPTOP</item>
+        <item>LÒ VI SÓNG</item>
+        <item>LOA</item>
+        <item>MÀN CHIẾU</item>
+        <item>MÀN HÌNH</item>
+        <item>MÁY BƠM NƯỚC</item>
+        <item>MÁY CHẤM CÔNG</item>
+        <item>MÁY CHIẾU</item>
+        <item>MÁY CHƠI GAME</item>
+        <item>MÁY CHỦ SERVER</item>
+        <item>MÁY ÉP MIỆNG TÚI</item>
+        <item>MÁY HÚT BỤI</item>
+        <item>MÁY HÚT KHÍ</item>
+        <item>MÁY HỦY GIẤY</item>
+        <item>MÁY IN</item>
+        <item>MÁY LẠNH</item>
+        <item>MÁY NƯỚC NÓNG</item>
+        <item>MÁY ỔN ÁP</item>
+        <item>MÁY SCAN</item>
+        <item>MIC</item>
+        <item>NAM CHÂM ĐIỆN GIỮ CỬA</item>
+        <item>NGÀM/LENS CAMERA</item>
+        <item>NHIỆT KẾ</item>
+        <item>Ổ CỨNG</item>
+        <item>ỐNG KÍNH</item>
+        <item>PC BUILD</item>
+        <item>PHÔNG CHỤP HÌNH</item>
+        <item>PIN</item>
+        <item>QUẠT</item>
+        <item>QUẦY BAR</item>
+        <item>QUẸT THẺ</item>
+        <item>RAM</item>
+        <item>REMOTE THIẾT BỊ ĐIỆN</item>
+        <item>SẠC</item>
+        <item>SWITCH</item>
+        <item>TAI NGHE</item>
+        <item>THẺ NHỚ</item>
+        <item>THIẾT BỊ ĐIỆN KHÁC</item>
+        <item>THIẾT BỊ ĐIỆN PHA CHẾ CAFÉ</item>
+        <item>THIẾT BỊ PHA CHẾ CAFÉ</item>
+        <item>THÙNG NHỰA</item>
+        <item>THÙNG RÁC</item>
+        <item>TỦ ĐIỆN</item>
+        <item>TỦ ĐÔNG</item>
+        <item>TỦ GIÀY</item>
+        <item>TỦ LẠNH</item>
+        <item>TỦ LOCKER</item>
+        <item>TỦ VÀ THIẾT BỊ PCCC</item>
+        <item>TỦ, KỆ</item>
+        <item>TỦ, KỆ GỖ</item>
+        <item>TV</item>
+        <item>WIFI</item>
+        <item>XE ĐẨY</item>
+        <item>XE MÁY</item>
+        <item>XE OTO</item>
+        <item>XE THĂNG BẰNG</item>
+    </string-array>
+    <string-array name="known_inventory_status_options">
+        <item>Đang sử dụng</item>
+        <item>Chờ phân bổ</item>
+        <item>Đang bảo trì</item>
+        <item>Thanh lí</item>
+        <item>Thất lạc</item>
+    </string-array>
+
+</resources>

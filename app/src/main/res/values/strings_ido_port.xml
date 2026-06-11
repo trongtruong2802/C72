@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="assets_title">Danh sách tài sản</string>
+    <string name="assets_load_api">Tải từ API</string>
+    <string name="assets_import_csv">Import CSV</string>
+    <string name="assets_show_cache">Xem cache runtime</string>
+    <string name="assets_loading">Đang xử lý dữ liệu tài sản...</string>
+    <string name="assets_csv_cancelled">Đã hủy chọn file CSV</string>
+    <string name="assets_cache_empty">Chưa có dữ liệu trong cache runtime. Hãy tải từ API hoặc import CSV.</string>
+    <string name="assets_cache_loaded">Đang hiển thị %1$d tài sản từ cache runtime. Nguồn cuối: %2$s</string>
+
+    <string name="logs_title">Nhật ký thao tác gần đây</string>
+
+    <string name="session_title">Thiết lập phiên làm việc</string>
+    <string name="session_operator_hint">Người kiểm kê / người thao tác</string>
+    <string name="session_department_hint">Bộ phận</string>
+    <string name="session_note_hint">Ghi chú phiên</string>
+    <string name="session_manual_entry">Yêu cầu nhập tay mỗi phiên</string>
+    <string name="session_save">Lưu phiên</string>
+    <string name="session_saved">Đã lưu cấu hình phiên làm việc</string>
+
+    <string name="settings_section_session">Phiên làm việc</string>
+    <string name="settings_session_description">Thông tin này được dùng cho dashboard, log thao tác và các phiếu xuất trong phiên hiện tại.</string>
+</resources>
