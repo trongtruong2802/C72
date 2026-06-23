@@ -24,6 +24,10 @@ import com.google.android.material.textfield.MaterialAutoCompleteTextView;
 import com.google.android.material.textfield.TextInputEditText;
 import com.idocean.asset.data.repository.AssetRepository;
 import com.idocean.asset.data.repository.LogRepository;
+import com.idocean.asset.diagnostics.AppFailureReporter;
+import com.idocean.asset.diagnostics.AppErrorCodes;
+import com.idocean.asset.diagnostics.DebugEventLogger;
+import com.idocean.asset.diagnostics.PerfLogger;
 import com.idocean.asset.model.Asset;
 import com.idocean.asset.scanner.rfid.ScannerTriggerHandler;
 import com.idocean.asset.utils.AssetFieldNormalizer;
@@ -41,12 +45,15 @@ import java.util.Locale;
 import java.util.Set;
 
 public class LookupActivity extends AppCompatActivity implements ScannerTriggerHandler, LookupScannerCallback, LookupController.LookupUi {
+    private static final String SCREEN = "Lookup";
+    private static final String FLOW_SCREEN_OPEN = "screen_open";
+    private static final String FLOW_CACHE_LOAD = "cache_load";
+
     public static final String EXTRA_ASSET_CODE = "lookup_asset_code";
     public static final String EXTRA_ASSET_TID = "lookup_asset_tid";
     private static final String STATE_CURRENT_ASSET_CODE = "lookup_state_asset_code";
     private static final String STATE_CURRENT_ASSET_TID = "lookup_state_asset_tid";
     private static final String STATE_EDITING = "lookup_state_editing";
-
     private final SimpleDateFormat tagDateFormat = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
 
     private final AssetRepository assetRepository = AssetRepository.getInstance();
@@ -54,6 +61,7 @@ public class LookupActivity extends AppCompatActivity implements ScannerTriggerH
     private final LookupController lookupController = new LookupController(assetRepository, logRepository);
     private QrScannerController qrScannerController;
     private RfidScannerController rfidScannerController;
+    private LookupUiRenderer uiRenderer;
 
     private TextView tvLookupStatus;
     private TextView tvLookupScannerStatus;
@@ -82,15 +90,17 @@ public class LookupActivity extends AppCompatActivity implements ScannerTriggerH
     private EditText[] editableFields;
 
     private boolean scannerPreparing;
-    private boolean editing;
-    private boolean saving;
     private boolean activityStarted;
-    private Asset currentAsset;
+    private AssetRepository.CacheSnapshot cacheSnapshot;
+    private Bundle deferredSavedState;
+    private PerfLogger.Trace screenOpenTrace;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         AppRuntimeContext.init(getApplicationContext());
+        screenOpenTrace = PerfLogger.start(SCREEN, FLOW_SCREEN_OPEN, "onCreate", "activity=LookupActivity");
+        screenOpenTrace.markStart(logRepository);
         setContentView(R.layout.activity_ido_lookup);
 
         MaterialToolbar toolbar = findViewById(R.id.toolbarIdoLookup);
@@ -100,17 +110,46 @@ public class LookupActivity extends AppCompatActivity implements ScannerTriggerH
 
         initScannerControllers();
         bindViews();
+        uiRenderer = new LookupUiRenderer(
+                tvLookupStatus,
+                tvLookupScannerStatus,
+                btnLookupScan,
+                btnLookupStop,
+                btnLookupEdit,
+                btnLookupCancel,
+                btnLookupSave,
+                btnLookupHandover,
+                etLookupCode,
+                etLookupTid,
+                etLookupOldCode,
+                etLookupOldSerial,
+                etLookupName,
+                etLookupType,
+                etLookupSerial,
+                etLookupDepartment,
+                etLookupUser,
+                etLookupLocation,
+                etLookupInventoryStatus,
+                etLookupNote,
+                editableFields
+        );
         bindEditableDropdowns();
         setupControls();
         applyDefaultScannerMode();
-        setEditMode(false);
+        uiRenderer.renderEditMode(false);
         updateButtons();
         updateScannerStatus();
-        if (savedInstanceState != null) {
-            restoreScreenState(savedInstanceState);
-        } else {
-            openAssetFromIntentIfNeeded();
-        }
+        deferredSavedState = savedInstanceState;
+        loadCacheSnapshotAsync();
+        findViewById(android.R.id.content).post(() -> {
+            if (isFinishing() || isDestroyed()) {
+                return;
+            }
+            if (screenOpenTrace != null) {
+                screenOpenTrace.finish(logRepository, "first_render", "contentReady=true");
+                screenOpenTrace = null;
+            }
+        });
     }
 
     @Override
@@ -154,9 +193,10 @@ public class LookupActivity extends AppCompatActivity implements ScannerTriggerH
     @Override
     protected void onSaveInstanceState(@NonNull Bundle outState) {
         super.onSaveInstanceState(outState);
+        Asset currentAsset = lookupController.getState().getCurrentAsset();
         outState.putString(STATE_CURRENT_ASSET_CODE, currentAsset == null ? "" : valueOrEmpty(currentAsset.getAssetCode()));
         outState.putString(STATE_CURRENT_ASSET_TID, currentAsset == null ? "" : valueOrEmpty(currentAsset.getTid()));
-        outState.putBoolean(STATE_EDITING, editing);
+        outState.putBoolean(STATE_EDITING, lookupController.getState().isEditing());
     }
 
     @Override
@@ -255,21 +295,45 @@ public class LookupActivity extends AppCompatActivity implements ScannerTriggerH
     }
 
     private void bindEditableDropdowns() {
-        bindDropdown(etLookupType, buildAssetTypeOptions());
-        bindDropdown(etLookupDepartment, buildDepartmentOptions());
-        bindDropdown(etLookupLocation, buildLocationOptions());
-        bindDropdown(etLookupInventoryStatus, buildInventoryStatusOptions());
+        uiRenderer.bindDropdown(etLookupType, buildAssetTypeOptions());
+        uiRenderer.bindDropdown(etLookupDepartment, buildDepartmentOptions());
+        uiRenderer.bindDropdown(etLookupLocation, buildLocationOptions());
+        uiRenderer.bindDropdown(etLookupInventoryStatus, buildInventoryStatusOptions());
     }
 
-    private void bindDropdown(MaterialAutoCompleteTextView view, List<String> options) {
-        if (view == null) {
-            return;
-        }
-        view.setSimpleItems(options.toArray(new String[0]));
-        view.setOnClickListener(v -> view.showDropDown());
-        view.setOnFocusChangeListener((v, hasFocus) -> {
-            if (hasFocus) {
-                view.showDropDown();
+    private void loadCacheSnapshotAsync() {
+        PerfLogger.Trace trace = PerfLogger.start(SCREEN, FLOW_CACHE_LOAD, "load_requested", "source=runtime_cache");
+        trace.markStart(logRepository);
+        assetRepository.loadCacheSnapshotAsync(snapshot -> {
+            if (isFinishing() || isDestroyed()) {
+                return;
+            }
+            try {
+                cacheSnapshot = snapshot;
+                lookupController.setCachedAssets(snapshot == null ? new ArrayList<>() : snapshot.getAssets());
+                bindEditableDropdowns();
+                if (deferredSavedState != null) {
+                    restoreScreenState(deferredSavedState);
+                    deferredSavedState = null;
+                } else {
+                    openAssetFromIntentIfNeeded();
+                }
+                trace.finish(
+                        logRepository,
+                        "load_completed",
+                        "assetCount=" + (snapshot == null ? 0 : snapshot.getAssetCount())
+                                + " | source=" + (snapshot == null ? "CACHE" : snapshot.getSource())
+                );
+            } catch (Exception exception) {
+                AppFailureReporter.report(
+                        logRepository,
+                        trace,
+                        SCREEN,
+                        FLOW_CACHE_LOAD,
+                        "load_failed",
+                        AppErrorCodes.UI_RENDER_FAILED,
+                        exception
+                );
             }
         });
     }
@@ -283,7 +347,7 @@ public class LookupActivity extends AppCompatActivity implements ScannerTriggerH
                 options.add(normalized);
             }
         }
-        List<String> runtimeValues = assetRepository.collectDistinctValues("assetType");
+        List<String> runtimeValues = cacheSnapshot == null ? new ArrayList<>() : cacheSnapshot.getDistinctValues("assetType");
         if (runtimeValues != null) {
             for (String value : runtimeValues) {
                 String normalized = AssetFieldNormalizer.normalizeAssetTypeForDisplay(value);
@@ -304,7 +368,7 @@ public class LookupActivity extends AppCompatActivity implements ScannerTriggerH
                 options.add(normalized);
             }
         }
-        List<String> runtimeValues = assetRepository.collectDistinctValues("department");
+        List<String> runtimeValues = cacheSnapshot == null ? new ArrayList<>() : cacheSnapshot.getDistinctValues("department");
         if (runtimeValues != null) {
             for (String value : runtimeValues) {
                 String normalized = AssetFieldNormalizer.normalizeDepartmentForDisplay(value);
@@ -325,7 +389,7 @@ public class LookupActivity extends AppCompatActivity implements ScannerTriggerH
                 options.add(normalized);
             }
         }
-        List<String> runtimeValues = assetRepository.collectDistinctValues("location");
+        List<String> runtimeValues = cacheSnapshot == null ? new ArrayList<>() : cacheSnapshot.getDistinctValues("location");
         if (runtimeValues != null) {
             for (String value : runtimeValues) {
                 String normalized = AssetLocationUtils.normalizeLocationForDisplay(value);
@@ -346,7 +410,7 @@ public class LookupActivity extends AppCompatActivity implements ScannerTriggerH
                 options.add(normalized);
             }
         }
-        List<String> runtimeValues = assetRepository.collectDistinctValues("inventoryStatus");
+        List<String> runtimeValues = cacheSnapshot == null ? new ArrayList<>() : cacheSnapshot.getDistinctValues("inventoryStatus");
         if (runtimeValues != null) {
             for (String value : runtimeValues) {
                 String normalized = AssetFieldNormalizer.normalizeInventoryStatusForDisplay(value);
@@ -365,7 +429,7 @@ public class LookupActivity extends AppCompatActivity implements ScannerTriggerH
     }
 
     private void startLookupScan() {
-        if (scannerPreparing || saving) {
+        if (scannerPreparing || lookupController.getState().isSaving()) {
             return;
         }
 
@@ -397,50 +461,6 @@ public class LookupActivity extends AppCompatActivity implements ScannerTriggerH
         rfidScannerController.scanSingle(getApplicationContext());
     }
 
-    private void bindAsset(Asset asset, String statusMessage) {
-        currentAsset = asset;
-        if (statusMessage != null && !statusMessage.trim().isEmpty()) {
-            tvLookupStatus.setText(statusMessage);
-        }
-        if (asset == null) {
-            clearForm();
-            setEditMode(false);
-            updateButtons();
-            return;
-        }
-
-        etLookupCode.setText(valueOrEmpty(asset.getAssetCode()));
-        etLookupTid.setText(valueOrEmpty(asset.getTid()));
-        etLookupOldCode.setText(valueOrEmpty(asset.getOldCode()));
-        etLookupOldSerial.setText(valueOrEmpty(asset.getOldSerial()));
-        etLookupName.setText(valueOrEmpty(asset.getAssetName()));
-        etLookupType.setText(AssetFieldNormalizer.normalizeAssetTypeForDisplay(asset.getAssetType()));
-        etLookupSerial.setText(valueOrEmpty(asset.getSerialNumber()));
-        etLookupDepartment.setText(AssetFieldNormalizer.normalizeDepartmentForDisplay(asset.getDepartment()), false);
-        etLookupUser.setText(valueOrEmpty(asset.getAssignedUser()));
-        etLookupLocation.setText(AssetLocationUtils.normalizeLocationForDisplay(asset.getLocation()), false);
-        etLookupInventoryStatus.setText(AssetFieldNormalizer.normalizeInventoryStatusForDisplay(asset.getInventoryStatus()), false);
-        etLookupNote.setText(valueOrEmpty(asset.getNote()));
-
-        setEditMode(false);
-        updateButtons();
-    }
-
-    private void clearForm() {
-        etLookupCode.setText("");
-        etLookupTid.setText("");
-        etLookupOldCode.setText("");
-        etLookupOldSerial.setText("");
-        etLookupName.setText("");
-        etLookupType.setText("");
-        etLookupSerial.setText("");
-        etLookupDepartment.setText("");
-        etLookupUser.setText("");
-        etLookupLocation.setText("");
-        etLookupInventoryStatus.setText("", false);
-        etLookupNote.setText("");
-    }
-
     private void startEditMode() {
         lookupController.startEdit(this);
     }
@@ -450,7 +470,7 @@ public class LookupActivity extends AppCompatActivity implements ScannerTriggerH
     }
 
     private void saveAssetChanges() {
-        if (!editing || saving) {
+        if (!lookupController.getState().isEditing() || lookupController.getState().isSaving()) {
             return;
         }
 
@@ -481,12 +501,12 @@ public class LookupActivity extends AppCompatActivity implements ScannerTriggerH
     }
 
     private void openHandoverDialog() {
-        final Asset sourceAsset = currentAsset;
+        final Asset sourceAsset = lookupController.getState().getCurrentAsset();
         if (sourceAsset == null) {
             showToast(getString(R.string.lookup_need_asset_first));
             return;
         }
-        if (saving) {
+        if (lookupController.getState().isSaving()) {
             return;
         }
 
@@ -502,8 +522,8 @@ public class LookupActivity extends AppCompatActivity implements ScannerTriggerH
         tvAssetName.setText(valueOrDash(sourceAsset.getAssetName()));
         tvAssetCode.setText("Code: " + valueOrDash(sourceAsset.getAssetCode()));
         tvAssetSummary.setText(LookupController.buildHandoverCurrentSummary(sourceAsset));
-        bindDropdown(etHandoverDepartment, buildDepartmentOptions());
-        bindDropdown(etHandoverLocation, buildLocationOptions());
+        uiRenderer.bindDropdown(etHandoverDepartment, buildDepartmentOptions());
+        uiRenderer.bindDropdown(etHandoverLocation, buildLocationOptions());
         etHandoverUser.setText("");
         etHandoverDepartment.setText(LookupController.normalizeDepartmentForHandover(sourceAsset, sourceAsset.getDepartment()), false);
         etHandoverLocation.setText(LookupController.normalizeLocationForHandover(sourceAsset, sourceAsset.getLocation()), false);
@@ -787,54 +807,19 @@ public class LookupActivity extends AppCompatActivity implements ScannerTriggerH
         return formatDate(System.currentTimeMillis());
     }
 
-    private void setEditMode(boolean enabled) {
-        editing = enabled;
-        etLookupCode.setEnabled(enabled);
-        etLookupTid.setEnabled(false);
-        setEditableFields(enabled);
-        updateButtons();
-    }
-
-    private void setEditableFields(boolean enabled) {
-        for (EditText field : editableFields) {
-            field.setEnabled(enabled);
-        }
-    }
-
     private void updateButtons() {
-        boolean hasAsset = currentAsset != null;
-        btnLookupScan.setEnabled(!scannerPreparing && !saving);
-        btnLookupStop.setEnabled(!scannerPreparing && qrScannerController != null && qrScannerController.isScanning());
-        btnLookupEdit.setEnabled(hasAsset && !editing && !saving);
-        btnLookupEdit.setVisibility(editing ? Button.GONE : Button.VISIBLE);
-        btnLookupCancel.setVisibility(editing ? Button.VISIBLE : Button.GONE);
-        btnLookupCancel.setEnabled(editing && !saving);
-        btnLookupSave.setEnabled(hasAsset && editing && !saving);
-        btnLookupSave.setVisibility(editing ? Button.VISIBLE : Button.GONE);
-        btnLookupHandover.setEnabled(hasAsset && !editing && !saving);
-        btnLookupHandover.setVisibility(editing ? Button.GONE : Button.VISIBLE);
+        LookupState state = lookupController.getState();
+        uiRenderer.renderButtons(
+                state.hasCurrentAsset(),
+                state.isEditing(),
+                state.isSaving(),
+                scannerPreparing,
+                qrScannerController != null && qrScannerController.isScanning()
+        );
     }
 
     private void updateScannerStatus() {
-        if (scannerPreparing) {
-            tvLookupScannerStatus.setText(R.string.lookup_scanner_preparing);
-            return;
-        }
-        if (rbLookupQr.isChecked()) {
-            if (qrScannerController != null && qrScannerController.isScanning()) {
-                tvLookupScannerStatus.setText(R.string.lookup_scanner_qr_running);
-                return;
-            }
-            tvLookupScannerStatus.setText(
-                    qrScannerController != null && qrScannerController.isReady()
-                            ? R.string.lookup_scanner_qr_ready
-                            : R.string.lookup_scanner_qr_lazy
-            );
-            return;
-        }
-        tvLookupScannerStatus.setText(rfidScannerController != null && rfidScannerController.isReady()
-                ? R.string.lookup_scanner_rfid_ready
-                : R.string.lookup_scanner_rfid_lazy);
+        uiRenderer.renderScannerStatus(resolveScannerStatusMessage());
     }
 
     private void setScannerPreparing(boolean preparing) {
@@ -850,6 +835,27 @@ public class LookupActivity extends AppCompatActivity implements ScannerTriggerH
         }
         updateButtons();
         updateScannerStatus();
+    }
+
+    private String resolveScannerStatusMessage() {
+        if (scannerPreparing) {
+            return getString(R.string.lookup_scanner_preparing);
+        }
+        if (rbLookupQr.isChecked()) {
+            if (qrScannerController != null && qrScannerController.isScanning()) {
+                return getString(R.string.lookup_scanner_qr_running);
+            }
+            return getString(
+                    qrScannerController != null && qrScannerController.isReady()
+                            ? R.string.lookup_scanner_qr_ready
+                            : R.string.lookup_scanner_qr_lazy
+            );
+        }
+        return getString(
+                rfidScannerController != null && rfidScannerController.isReady()
+                        ? R.string.lookup_scanner_rfid_ready
+                        : R.string.lookup_scanner_rfid_lazy
+        );
     }
 
     private String textOf(TextView view) {
@@ -943,24 +949,23 @@ public class LookupActivity extends AppCompatActivity implements ScannerTriggerH
 
     @Override
     public void renderAsset(Asset asset) {
-        bindAsset(asset, null);
+        uiRenderer.renderAsset(asset);
+        updateButtons();
     }
 
     @Override
     public void showStatus(String message) {
-        if (tvLookupStatus != null && message != null && !message.trim().isEmpty()) {
-            tvLookupStatus.setText(message);
-        }
+        uiRenderer.renderStatus(message);
     }
 
     @Override
     public void renderEditMode(boolean editing) {
-        setEditMode(editing);
+        uiRenderer.renderEditMode(editing);
+        updateButtons();
     }
 
     @Override
     public void renderSaving(boolean saving) {
-        this.saving = saving;
         updateButtons();
     }
 
@@ -1040,16 +1045,8 @@ public class LookupActivity extends AppCompatActivity implements ScannerTriggerH
         }
         String savedCode = savedInstanceState.getString(STATE_CURRENT_ASSET_CODE, "");
         String savedTid = savedInstanceState.getString(STATE_CURRENT_ASSET_TID, "");
-        editing = savedInstanceState.getBoolean(STATE_EDITING, false);
+        boolean editing = savedInstanceState.getBoolean(STATE_EDITING, false);
         lookupController.restoreState(savedCode, savedTid, editing, this);
-    }
-
-    private String validateEditableForm() {
-        String assetName = textOf(etLookupName);
-        if (assetName.isEmpty()) {
-            return setFieldError(etLookupName, R.string.lookup_need_asset_name);
-        }
-        return "";
     }
 
     private void clearEditableFieldErrors() {

@@ -180,6 +180,10 @@ public class AssetRepository {
         return assetFilterService.filterAssets(getCachedAssets(), criteria);
     }
 
+    public List<Asset> filterAssets(List<Asset> assets, AssetFilterCriteria criteria) {
+        return assetFilterService.filterAssets(assets, criteria);
+    }
+
     public List<String> collectDistinctValues(String fieldName) {
         ensureDiskCacheLoaded();
         return assetFilterService.collectDistinctValues(getCachedAssets(), fieldName);

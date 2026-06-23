@@ -1,43 +1,47 @@
 package com.idocean.asset.ui.lookup;
 
 import android.content.Context;
+import android.os.SystemClock;
 
+import com.idocean.asset.diagnostics.AppErrorCodes;
+import com.idocean.asset.diagnostics.DebugEventLogger;
+import com.idocean.asset.diagnostics.PerfLogger;
 import com.idocean.asset.scanner.barcode.BarcodeScannerListener;
-import com.idocean.asset.scanner.barcode.ChainwayBarcodeService;
+import com.idocean.asset.scanner.core.QrScannerSession;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public final class QrScannerController implements BarcodeScannerListener {
-    private final ChainwayBarcodeService barcodeService;
+    private static final String SCREEN = "Lookup";
+    private static final String FLOW_QR = "qr_scan";
+
+    private final QrScannerSession qrScannerSession;
     private final ExecutorService executor;
     private final LookupScannerCallback callback;
     private volatile boolean started;
-    private boolean sessionAcquired;
+    private long qrScanRequestedAtMs = -1L;
 
     public QrScannerController(LookupScannerCallback callback) {
-        this(callback, ChainwayBarcodeService.getInstance(), Executors.newSingleThreadExecutor());
+        this(callback, new QrScannerSession(), Executors.newSingleThreadExecutor());
     }
 
-    QrScannerController(LookupScannerCallback callback, ChainwayBarcodeService barcodeService, ExecutorService executor) {
+    QrScannerController(LookupScannerCallback callback, QrScannerSession qrScannerSession, ExecutorService executor) {
         this.callback = callback;
-        this.barcodeService = barcodeService;
+        this.qrScannerSession = qrScannerSession == null ? new QrScannerSession() : qrScannerSession;
         this.executor = executor;
     }
 
     public void onStart() {
         started = true;
-        barcodeService.registerListener(this);
+        qrScannerSession.registerListener(this);
     }
 
     public void onStop() {
         started = false;
         stopScan();
-        if (sessionAcquired) {
-            barcodeService.release();
-            sessionAcquired = false;
-        }
-        barcodeService.unregisterListener(this);
+        qrScannerSession.releaseSession();
+        qrScannerSession.unregisterListener(this);
     }
 
     public void shutdown() {
@@ -50,12 +54,18 @@ public final class QrScannerController implements BarcodeScannerListener {
             return;
         }
 
-        if (barcodeService.isReady()) {
+        qrScanRequestedAtMs = SystemClock.elapsedRealtime();
+        PerfLogger.Trace trace = PerfLogger.start(SCREEN, FLOW_QR, "scan_requested", "mode=QR");
+        trace.markStart(null);
+        if (qrScannerSession.isReady()) {
             if (!started) {
                 return;
             }
-            if (!barcodeService.startScan()) {
+            if (!qrScannerSession.startScan()) {
+                trace.fail(null, "scan_failed", AppErrorCodes.QR_SCAN_FAILED, "startScan=false");
                 callback.onQrScannerBusy();
+            } else {
+                trace.finish(null, "scan_started", "mode=QR");
             }
             return;
         }
@@ -65,17 +75,18 @@ public final class QrScannerController implements BarcodeScannerListener {
             if (!started) {
                 return;
             }
-            boolean ready = ensureBarcodeReady(context.getApplicationContext());
+            boolean ready = qrScannerSession.ensureReady(context.getApplicationContext());
             if (!started) {
-                if (sessionAcquired) {
-                    barcodeService.release();
-                    sessionAcquired = false;
+                if (ready) {
+                    qrScannerSession.releaseSession();
                 }
                 return;
             }
 
             callback.onScannerPreparingChanged(false);
             if (!ready) {
+                qrScanRequestedAtMs = -1L;
+                trace.fail(null, "scan_failed", AppErrorCodes.QR_OPEN_FAILED, "scannerReady=false");
                 callback.onQrScannerUnavailable();
                 return;
             }
@@ -83,30 +94,37 @@ public final class QrScannerController implements BarcodeScannerListener {
             if (!started) {
                 return;
             }
-            if (!barcodeService.startScan()) {
+            if (!qrScannerSession.startScan()) {
+                qrScanRequestedAtMs = -1L;
+                trace.fail(null, "scan_failed", AppErrorCodes.QR_SCAN_FAILED, "startScan=false");
                 callback.onQrScannerBusy();
+            } else {
+                trace.finish(null, "scan_started", "mode=QR");
             }
         });
     }
 
     public boolean stopScan() {
-        boolean wasScanning = barcodeService.isScanning();
-        barcodeService.stopScan();
-        return wasScanning;
+        return qrScannerSession.stopScan();
     }
 
     public boolean isReady() {
-        return barcodeService.isReady();
+        return qrScannerSession.isReady();
     }
 
     public boolean isScanning() {
-        return barcodeService.isScanning();
+        return qrScannerSession.isScanning();
     }
 
     @Override
     public void onBarcodeScanned(String code, long timestamp) {
         if (!started || callback == null) {
             return;
+        }
+        if (qrScanRequestedAtMs > 0L) {
+            long durationMs = Math.max(0L, SystemClock.elapsedRealtime() - qrScanRequestedAtMs);
+            DebugEventLogger.duration(null, SCREEN, FLOW_QR, "scan_result", "code=" + abbreviate(code), durationMs);
+            qrScanRequestedAtMs = -1L;
         }
         callback.onScanResult(ScanResult.qr(code, timestamp));
     }
@@ -116,20 +134,21 @@ public final class QrScannerController implements BarcodeScannerListener {
         if (!started || callback == null) {
             return;
         }
+        String detail = message == null ? "" : message.trim();
+        if (qrScanRequestedAtMs > 0L) {
+            long durationMs = Math.max(0L, SystemClock.elapsedRealtime() - qrScanRequestedAtMs);
+            detail = detail.isEmpty() ? "durationMs=" + durationMs : detail + " | durationMs=" + durationMs;
+            qrScanRequestedAtMs = -1L;
+        }
+        DebugEventLogger.error(null, SCREEN, FLOW_QR, "scan_error", AppErrorCodes.QR_SCAN_FAILED, detail);
         callback.onScannerError(message);
     }
 
-    private boolean ensureBarcodeReady(Context context) {
-        if (barcodeService.isReady()) {
-            return true;
+    private String abbreviate(String value) {
+        String safeValue = value == null ? "" : value.trim();
+        if (safeValue.length() <= 48) {
+            return safeValue;
         }
-        boolean ready = barcodeService.acquire(context);
-        if (ready) {
-            sessionAcquired = true;
-            return true;
-        }
-        barcodeService.release();
-        sessionAcquired = false;
-        return false;
+        return safeValue.substring(0, 48) + "...";
     }
 }

@@ -7,6 +7,8 @@ import android.view.ViewGroup;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.recyclerview.widget.DiffUtil;
+import androidx.recyclerview.widget.ListAdapter;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.idocean.asset.R;
@@ -16,16 +18,40 @@ import com.idocean.asset.model.InventorySessionItem;
 import java.util.ArrayList;
 import java.util.List;
 
-public class InventoryResultAdapter extends RecyclerView.Adapter<InventoryResultAdapter.InventoryViewHolder> {
+public class InventoryResultAdapter extends ListAdapter<InventoryResultAdapter.InventoryRow, InventoryResultAdapter.InventoryViewHolder> {
 
-    private final List<InventorySessionItem> items = new ArrayList<>();
+    private static final DiffUtil.ItemCallback<InventoryRow> DIFF_CALLBACK =
+            new DiffUtil.ItemCallback<InventoryRow>() {
+                @Override
+                public boolean areItemsTheSame(@NonNull InventoryRow oldItem, @NonNull InventoryRow newItem) {
+                    return sameValue(oldItem.itemKey, newItem.itemKey);
+                }
 
-    public void submitList(List<InventorySessionItem> newItems) {
-        items.clear();
+                @Override
+                public boolean areContentsTheSame(@NonNull InventoryRow oldItem, @NonNull InventoryRow newItem) {
+                    return oldItem.hasSameContent(newItem);
+                }
+            };
+
+    public InventoryResultAdapter() {
+        super(DIFF_CALLBACK);
+        setHasStableIds(true);
+    }
+
+    public void submitItems(List<InventorySessionItem> newItems) {
+        List<InventoryRow> rows = new ArrayList<>();
         if (newItems != null) {
-            items.addAll(newItems);
+            for (InventorySessionItem item : newItems) {
+                rows.add(InventoryRow.from(item));
+            }
         }
-        notifyDataSetChanged();
+        super.submitList(rows);
+    }
+
+    @Override
+    public long getItemId(int position) {
+        InventoryRow row = getItem(position);
+        return row == null ? RecyclerView.NO_ID : row.itemKey.hashCode();
     }
 
     @NonNull
@@ -37,53 +63,48 @@ public class InventoryResultAdapter extends RecyclerView.Adapter<InventoryResult
 
     @Override
     public void onBindViewHolder(@NonNull InventoryViewHolder holder, int position) {
-        InventorySessionItem item = items.get(position);
+        InventoryRow item = getItem(position);
         Context context = holder.itemView.getContext();
 
-        holder.tvItemName.setText((position + 1) + ". " + valueOrDash(item.getAssetName()));
+        holder.tvItemName.setText((position + 1) + ". " + valueOrDash(item.assetName));
         holder.tvItemIdentity.setText(
                 context.getString(R.string.inventory_field_code)
-                        + ": " + valueOrDash(item.getDisplayCode())
+                        + ": " + valueOrDash(item.displayCode)
                         + " | "
                         + context.getString(R.string.inventory_field_tid)
-                        + ": " + valueOrDash(item.getDisplayTid())
+                        + ": " + valueOrDash(item.displayTid)
         );
         holder.tvItemMeta.setText(
                 context.getString(R.string.inventory_field_department)
-                        + ": " + valueOrDash(item.getDepartment())
+                        + ": " + valueOrDash(item.department)
                         + " | "
                         + context.getString(R.string.inventory_field_user)
-                        + ": " + valueOrDash(item.getAssignedUser())
+                        + ": " + valueOrDash(item.assignedUser)
         );
         holder.tvItemOwner.setText(
                 context.getString(R.string.inventory_field_type)
-                        + ": " + valueOrDash(item.getAssetType())
+                        + ": " + valueOrDash(item.assetType)
                         + " | "
                         + context.getString(R.string.inventory_field_serial)
-                        + ": " + valueOrDash(item.getSerialNumber())
+                        + ": " + valueOrDash(item.serialNumber)
         );
         holder.tvItemLocation.setText(
-                context.getString(R.string.inventory_field_location) + ": " + valueOrDash(item.getLocation())
+                context.getString(R.string.inventory_field_location) + ": " + valueOrDash(item.location)
         );
 
-        DisplayBadge badge = resolveBadge(context, item);
+        DisplayBadge badge = resolveBadge(context, item.status);
         holder.tvItemBadge.setText(badge.label);
         holder.tvItemBadge.setBackgroundResource(badge.backgroundRes);
     }
 
-    @Override
-    public int getItemCount() {
-        return items.size();
-    }
-
-    private DisplayBadge resolveBadge(Context context, InventorySessionItem item) {
-        if (item.getStatus() == InventoryItemStatus.OUTSIDE) {
+    private DisplayBadge resolveBadge(Context context, InventoryItemStatus status) {
+        if (status == InventoryItemStatus.OUTSIDE) {
             return new DisplayBadge(
                     context.getString(R.string.inventory_badge_outside),
                     R.drawable.bg_inventory_status_outside
             );
         }
-        if (item.getStatus() == InventoryItemStatus.CHECKED) {
+        if (status == InventoryItemStatus.CHECKED) {
             return new DisplayBadge(
                     context.getString(R.string.inventory_badge_matched),
                     R.drawable.bg_inventory_status_checked
@@ -95,8 +116,12 @@ public class InventoryResultAdapter extends RecyclerView.Adapter<InventoryResult
         );
     }
 
-    private String valueOrDash(String value) {
+    private static String valueOrDash(String value) {
         return value == null || value.trim().isEmpty() ? "-" : value.trim();
+    }
+
+    private static boolean sameValue(String left, String right) {
+        return left == null ? right == null : left.equals(right);
     }
 
     static final class InventoryViewHolder extends RecyclerView.ViewHolder {
@@ -125,6 +150,72 @@ public class InventoryResultAdapter extends RecyclerView.Adapter<InventoryResult
         DisplayBadge(String label, int backgroundRes) {
             this.label = label;
             this.backgroundRes = backgroundRes;
+        }
+    }
+
+    static final class InventoryRow {
+        final String itemKey;
+        final InventoryItemStatus status;
+        final String displayCode;
+        final String displayTid;
+        final String assetName;
+        final String department;
+        final String assignedUser;
+        final String assetType;
+        final String serialNumber;
+        final String location;
+
+        private InventoryRow(String itemKey,
+                             InventoryItemStatus status,
+                             String displayCode,
+                             String displayTid,
+                             String assetName,
+                             String department,
+                             String assignedUser,
+                             String assetType,
+                             String serialNumber,
+                             String location) {
+            this.itemKey = itemKey == null ? "" : itemKey;
+            this.status = status == null ? InventoryItemStatus.MISSING : status;
+            this.displayCode = displayCode == null ? "" : displayCode;
+            this.displayTid = displayTid == null ? "" : displayTid;
+            this.assetName = assetName == null ? "" : assetName;
+            this.department = department == null ? "" : department;
+            this.assignedUser = assignedUser == null ? "" : assignedUser;
+            this.assetType = assetType == null ? "" : assetType;
+            this.serialNumber = serialNumber == null ? "" : serialNumber;
+            this.location = location == null ? "" : location;
+        }
+
+        static InventoryRow from(InventorySessionItem item) {
+            if (item == null) {
+                return new InventoryRow("", InventoryItemStatus.MISSING, "", "", "", "", "", "", "", "");
+            }
+            return new InventoryRow(
+                    item.getItemKey(),
+                    item.getStatus(),
+                    item.getDisplayCode(),
+                    item.getDisplayTid(),
+                    item.getAssetName(),
+                    item.getDepartment(),
+                    item.getAssignedUser(),
+                    item.getAssetType(),
+                    item.getSerialNumber(),
+                    item.getLocation()
+            );
+        }
+
+        boolean hasSameContent(InventoryRow other) {
+            return other != null
+                    && status == other.status
+                    && sameValue(displayCode, other.displayCode)
+                    && sameValue(displayTid, other.displayTid)
+                    && sameValue(assetName, other.assetName)
+                    && sameValue(department, other.department)
+                    && sameValue(assignedUser, other.assignedUser)
+                    && sameValue(assetType, other.assetType)
+                    && sameValue(serialNumber, other.serialNumber)
+                    && sameValue(location, other.location);
         }
     }
 }

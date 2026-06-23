@@ -3,21 +3,21 @@ package com.idocean.asset.ui.checkout;
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
-import android.util.Log;
+import android.os.SystemClock;
 
 import com.idocean.asset.R;
 import com.idocean.asset.data.repository.LogRepository;
+import com.idocean.asset.diagnostics.AppErrorCodes;
+import com.idocean.asset.diagnostics.DebugEventLogger;
+import com.idocean.asset.diagnostics.PerfLogger;
 import com.idocean.asset.scanner.barcode.BarcodeScannerListener;
-import com.idocean.asset.scanner.barcode.ChainwayBarcodeService;
-import com.idocean.asset.ui.checkout.CheckoutActivity.ScreenTab;
+import com.idocean.asset.scanner.core.QrScannerSession;
+import com.idocean.asset.scanner.core.RfidContinuousInventorySession;
+import com.idocean.asset.scanner.core.RfidReaderSession;
+import com.idocean.asset.scanner.core.RfidSingleScanRunner;
+import com.idocean.asset.scanner.core.RfidTagDecoder;
 import com.idocean.asset.scanner.rfid.RfidTagNormalizer;
-import com.idocean.asset.utils.EpcUtils;
-import com.idocean.asset.scanner.rfid.UhfScanData;
-import com.rscja.deviceapi.RFIDWithUHFUART;
-import com.rscja.deviceapi.entity.InventoryModeEntity;
-import com.rscja.deviceapi.entity.InventoryParameter;
-import com.rscja.deviceapi.entity.UHFTAGInfo;
-import com.rscja.deviceapi.interfaces.IUHFInventoryCallback;
+import com.idocean.asset.ui.checkout.CheckoutActivity.ScreenTab;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -89,40 +89,45 @@ public final class CheckoutScannerController implements BarcodeScannerListener {
         }
     }
 
-    private static final String TAG_DEMO_UHF = "DEMO_UHF";
-    private static final String TAG_INV_PERF = "INV_PERF";
+    private static final String FLOW_QR = "qr_scan";
+    private static final String FLOW_RFID_SINGLE = "rfid_single";
+    private static final String FLOW_RFID_CONTINUOUS = "rfid_continuous";
 
-    private final ChainwayBarcodeService barcodeService = ChainwayBarcodeService.getInstance();
+    private final QrScannerSession qrScannerSession = new QrScannerSession();
+    private final RfidReaderSession rfidReaderSession;
+    private final RfidContinuousInventorySession continuousInventorySession;
     private final LogRepository logRepository;
     private final Callback callback;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final ExecutorService scannerExecutor = Executors.newSingleThreadExecutor();
-    private final Object readerLock = new Object();
 
     private volatile boolean started;
     private boolean scannerPreparing;
     private ScreenTab scannerPreparingTab = ScreenTab.CHECKOUT;
-    private boolean barcodeSessionAcquired;
-    private RFIDWithUHFUART reader;
-    private InventoryModeEntity previousInventoryMode;
-    private boolean readerReady;
-    private boolean readerInventoryRunning;
+    private ScreenTab qrRequestedTab = ScreenTab.CHECKOUT;
+    private long qrScanRequestedAtMs = -1L;
     private ScreenTab inventoryRunningTab = ScreenTab.CHECKOUT;
 
     public CheckoutScannerController(Callback callback, LogRepository logRepository) {
         this.callback = callback;
         this.logRepository = logRepository;
+        this.rfidReaderSession = new RfidReaderSession();
+        this.continuousInventorySession = new RfidContinuousInventorySession(
+                rfidReaderSession,
+                logRepository,
+                FLOW_RFID_CONTINUOUS
+        );
     }
 
     public void onStart(Context activityContext) {
         started = true;
-        barcodeService.registerListener(this);
+        qrScannerSession.registerListener(this);
     }
 
     public void onStop() {
         started = false;
         stopAllScanning();
-        barcodeService.unregisterListener(this);
+        qrScannerSession.unregisterListener(this);
         releaseBarcodeSession();
         releaseReader();
         scannerPreparing = false;
@@ -158,38 +163,40 @@ public final class CheckoutScannerController implements BarcodeScannerListener {
     }
 
     public void stopAllScanning() {
-        boolean wasQrScanning = barcodeService.isScanning();
-        boolean wasRfidRunning = readerInventoryRunning;
-        barcodeService.stopScan();
+        boolean wasQrScanning = qrScannerSession.isScanning();
+        boolean wasRfidRunning = rfidReaderSession.isInventoryRunning();
+        qrScannerSession.stopScan();
         stopContinuousInventory();
         if (wasQrScanning || wasRfidRunning) {
-            logRepository.logInfo(
-                    "STOP_SCAN",
-                    "Dung scanner check out/check in",
-                    wasQrScanning ? "QR" : "RFID"
+            DebugEventLogger.info(
+                    logRepository,
+                    screenName(wasRfidRunning ? inventoryRunningTab : qrRequestedTab),
+                    wasQrScanning ? FLOW_QR : FLOW_RFID_CONTINUOUS,
+                    "stop_requested",
+                    wasQrScanning ? "mode=QR" : "mode=RFID"
             );
         }
         dispatchScannerStateChanged();
     }
 
     public boolean isAnyScannerRunning() {
-        return barcodeService.isScanning() || readerInventoryRunning;
+        return qrScannerSession.isScanning() || rfidReaderSession.isInventoryRunning();
     }
 
     public boolean isQrScanning() {
-        return barcodeService.isScanning();
+        return qrScannerSession.isScanning();
     }
 
     public boolean isBarcodeReady() {
-        return barcodeService.isReady();
+        return qrScannerSession.isReady();
     }
 
     public boolean isReaderInventoryRunning() {
-        return readerInventoryRunning;
+        return continuousInventorySession.isRunning();
     }
 
     public boolean isReaderReady() {
-        return readerReady;
+        return rfidReaderSession.isReady();
     }
 
     public boolean isScannerPreparing() {
@@ -201,42 +208,48 @@ public final class CheckoutScannerController implements BarcodeScannerListener {
     }
 
     public String getQrStatusMessage() {
-        return barcodeService.getStatusMessage();
+        return qrScannerSession.getStatusMessage();
     }
 
     private void startQrScan(ScreenTab targetTab, Context context) {
-        logRepository.logInfo("START_SCAN", "Bat dau scan QR", describeTab(targetTab));
-        if (barcodeService.isReady()) {
-            startQrScanInternal(targetTab);
+        qrRequestedTab = targetTab == null ? ScreenTab.CHECKOUT : targetTab;
+        qrScanRequestedAtMs = SystemClock.elapsedRealtime();
+        PerfLogger.Trace trace = PerfLogger.start(screenName(qrRequestedTab), FLOW_QR, "scan_requested", "mode=QR");
+        trace.markStart(logRepository);
+        if (qrScannerSession.isReady()) {
+            startQrScanInternal(qrRequestedTab, trace);
             return;
         }
 
-        setScannerPreparing(targetTab, true);
+        setScannerPreparing(qrRequestedTab, true);
         scannerExecutor.execute(() -> {
-            boolean ready = ensureBarcodeReady(context);
+            boolean ready = qrScannerSession.ensureReady(context);
             mainHandler.post(() -> {
-                setScannerPreparing(targetTab, false);
+                setScannerPreparing(qrRequestedTab, false);
                 if (!started) {
-                    if (ready && barcodeSessionAcquired) {
-                        barcodeService.release();
-                        barcodeSessionAcquired = false;
+                    if (ready) {
+                        qrScannerSession.releaseSession();
                     }
                     return;
                 }
                 if (!ready) {
-                    logRepository.logError("ERROR", "Khong mo duoc scanner QR o man " + describeTab(targetTab));
+                    qrScanRequestedAtMs = -1L;
+                    trace.fail(logRepository, "scan_failed", AppErrorCodes.QR_OPEN_FAILED, "scannerReady=false");
                     dispatchScannerError(context.getString(R.string.checkout_scanner_unknown));
                     return;
                 }
-                startQrScanInternal(targetTab);
+                startQrScanInternal(qrRequestedTab, trace);
             });
         });
     }
 
-    private void startQrScanInternal(ScreenTab targetTab) {
-        if (!barcodeService.startScan()) {
-            logRepository.logError("ERROR", "Scanner QR dang ban hoac dang cho ket qua", describeTab(targetTab));
+    private void startQrScanInternal(ScreenTab targetTab, PerfLogger.Trace trace) {
+        if (!qrScannerSession.startScan()) {
+            qrScanRequestedAtMs = -1L;
+            trace.fail(logRepository, "scan_failed", AppErrorCodes.QR_SCAN_FAILED, "startScan=false");
             dispatchScannerError("Scanner QR dang ban hoac dang cho ket qua.");
+        } else {
+            trace.finish(logRepository, "scan_started", "mode=QR");
         }
         dispatchScannerStateChanged();
     }
@@ -244,22 +257,27 @@ public final class CheckoutScannerController implements BarcodeScannerListener {
     private void runSingleRfidScan(ScreenTab targetTab, Context context) {
         stopContinuousInventory();
         setScannerPreparing(targetTab, true);
+        PerfLogger.Trace trace = PerfLogger.start(screenName(targetTab), FLOW_RFID_SINGLE, "scan_requested", "mode=single");
+        trace.markStart(logRepository);
         scannerExecutor.execute(() -> {
             RfidReadResult result = readSingleRfid(context.getApplicationContext());
             mainHandler.post(() -> {
                 setScannerPreparing(targetTab, false);
                 if (!started) {
-                    if (reader != null) {
-                        releaseReader();
-                    }
+                    releaseReader();
                     return;
                 }
                 dispatchScannerStateChanged();
                 if (!result.isSuccess()) {
-                    logRepository.logError("ERROR", "Doc RFID that bai o man " + describeTab(targetTab), result.getErrorMessage());
+                    trace.fail(logRepository, "scan_failed", AppErrorCodes.RFID_SINGLE_SCAN_FAILED, result.getErrorMessage());
                     dispatchScannerError(result.getErrorMessage());
                     return;
                 }
+                trace.finish(
+                        logRepository,
+                        "scan_result",
+                        "tid=" + abbreviate(result.getTid()) + " | code=" + abbreviate(result.getCode())
+                );
                 dispatchRfidScanResult(targetTab, result, false);
             });
         });
@@ -268,211 +286,84 @@ public final class CheckoutScannerController implements BarcodeScannerListener {
     private void startContinuousRfidScan(ScreenTab targetTab, Context context) {
         stopContinuousInventory();
         setScannerPreparing(targetTab, true);
+        PerfLogger.Trace trace = PerfLogger.start(screenName(targetTab), FLOW_RFID_CONTINUOUS, "scan_requested", "mode=continuous");
+        trace.markStart(logRepository);
         scannerExecutor.execute(() -> {
-            String errorMessage = null;
-            boolean inventoryStarted = false;
-
-            if (!initReaderIfNeeded(context.getApplicationContext())) {
-                errorMessage = "Khong mo duoc dau doc UHF.";
-            } else if (!ensureTidMode()) {
-                errorMessage = "Khong chuyen duoc reader sang mode EPC + TID.";
-            } else {
-                synchronized (readerLock) {
-                    if (reader == null) {
-                        errorMessage = "Khong mo duoc dau doc UHF.";
-                    } else {
-                        reader.setInventoryCallback(new IUHFInventoryCallback() {
-                            @Override
-                            public void callback(UHFTAGInfo uhftagInfo) {
-                                handleContinuousTag(context.getApplicationContext(), targetTab, uhftagInfo);
-                            }
-                        });
-
-                        InventoryParameter parameter = new InventoryParameter();
-                        parameter.setResultData(new InventoryParameter.ResultData().setNeedPhase(false));
-                        inventoryStarted = reader.startInventoryTag(parameter);
-                        inventoryRunningTab = targetTab;
-                        readerInventoryRunning = inventoryStarted;
-                        if (!inventoryStarted) {
-                            reader.setInventoryCallback(null);
-                            errorMessage = "Khong the bat dau inventory UHF.";
-                        }
-                    }
-                }
-            }
-
-            boolean finalInventoryStarted = inventoryStarted;
-            String finalErrorMessage = errorMessage;
+            RfidContinuousInventorySession.StartResult result = continuousInventorySession.start(
+                    context.getApplicationContext(),
+                    screenName(targetTab),
+                    "Khong mo duoc dau doc UHF.",
+                    "Khong chuyen duoc reader sang mode EPC + TID.",
+                    "Khong the bat dau inventory UHF.",
+                    decodedTag -> handleContinuousTag(targetTab, context.getApplicationContext(), decodedTag)
+            );
             mainHandler.post(() -> {
                 setScannerPreparing(targetTab, false);
                 if (!started) {
-                    if (!started) {
-                        stopContinuousInventory();
-                        releaseReader();
-                    }
+                    stopContinuousInventory();
+                    releaseReader();
                     return;
                 }
-                if (!finalInventoryStarted && finalErrorMessage != null) {
-                    logRepository.logError("ERROR", "Khong the bat dau inventory RFID o man " + describeTab(targetTab), finalErrorMessage);
-                    dispatchScannerError(finalErrorMessage);
+                if (!result.isStarted()) {
+                    trace.fail(logRepository, "scan_failed", result.getErrorCode(), result.getErrorMessage());
+                    dispatchScannerError(result.getErrorMessage());
+                } else {
+                    inventoryRunningTab = targetTab == null ? ScreenTab.CHECKOUT : targetTab;
+                    trace.finish(logRepository, "scan_started", "mode=continuous");
                 }
                 dispatchScannerStateChanged();
             });
         });
     }
 
-    private void handleContinuousTag(Context context, ScreenTab targetTab, UHFTAGInfo tagInfo) {
-        RfidReadResult result = buildRfidReadResult(context, tagInfo);
+    private void handleContinuousTag(ScreenTab targetTab, Context context, RfidTagDecoder.DecodedTag decodedTag) {
+        RfidReadResult result = buildRfidReadResult(context, decodedTag);
         if (!result.isSuccess()) {
             return;
         }
-        mainHandler.post(() -> {
-            if (!started) {
-                return;
-            }
-            dispatchRfidScanResult(targetTab, result, true);
-        });
+        if (!started) {
+            return;
+        }
+        dispatchRfidScanResult(targetTab, result, true);
     }
 
     private RfidReadResult readSingleRfid(Context context) {
-        synchronized (readerLock) {
-            if (!initReaderIfNeeded(context)) {
-                return RfidReadResult.error("Khong mo duoc dau doc UHF.");
-            }
-            if (!ensureTidMode()) {
-                return RfidReadResult.error("Khong chuyen duoc reader sang mode EPC + TID.");
-            }
-
-            UHFTAGInfo tagInfo = reader == null ? null : reader.inventorySingleTag();
-            if (tagInfo == null) {
-                return RfidReadResult.error("Khong doc duoc the RFID.");
-            }
-
-            return buildRfidReadResult(context, tagInfo);
+        RfidSingleScanRunner.Result result = RfidSingleScanRunner.run(
+                context,
+                rfidReaderSession,
+                "Khong mo duoc dau doc UHF.",
+                "Khong chuyen duoc reader sang mode EPC + TID.",
+                "Khong doc duoc the RFID."
+        );
+        if (!result.isSuccess()) {
+            return RfidReadResult.error(result.getErrorMessage());
         }
+        return buildRfidReadResult(context, result.getDecodedTag());
     }
 
-    private RfidReadResult buildRfidReadResult(Context context, UHFTAGInfo tagInfo) {
-        UhfScanData scanData = UhfScanData.from(tagInfo);
-        String tid = RfidTagNormalizer.sanitizeTid(scanData.getTid());
-        String epcHex = RfidTagNormalizer.normalizeHex(scanData.getEpcHex());
-        String code = safe(scanData.getEpcAsciiCode());
-        if (tid.isEmpty() && !epcHex.isEmpty()) {
-            tid = readTidFromBank(epcHex);
-        }
-        if (code.isEmpty()) {
-            code = EpcUtils.hexToAscii(epcHex);
-        }
-        if (tid.isEmpty()) {
+    private RfidReadResult buildRfidReadResult(Context context, RfidTagDecoder.DecodedTag decodedTag) {
+        if (decodedTag.getTid().isEmpty()) {
             return RfidReadResult.error(context.getString(R.string.checkout_need_identifier));
         }
-        return RfidReadResult.success(tid, code, epcHex, System.currentTimeMillis());
-    }
-
-    private boolean ensureBarcodeReady(Context context) {
-        if (barcodeService.isReady()) {
-            return true;
-        }
-        boolean ready = barcodeService.acquire(context);
-        if (ready) {
-            barcodeSessionAcquired = true;
-            return true;
-        }
-        barcodeService.release();
-        barcodeSessionAcquired = false;
-        return false;
-    }
-
-    private boolean initReaderIfNeeded(Context appContext) {
-        synchronized (readerLock) {
-            if (readerReady && reader != null) {
-                return true;
-            }
-            try {
-                reader = RFIDWithUHFUART.getInstance();
-                if (reader == null) {
-                    readerReady = false;
-                    return false;
-                }
-                readerReady = reader.init(appContext);
-                if (readerReady) {
-                    previousInventoryMode = reader.getEPCAndTIDUserMode();
-                }
-                return readerReady;
-            } catch (Exception exception) {
-                readerReady = false;
-                return false;
-            }
-        }
-    }
-
-    private boolean ensureTidMode() {
-        synchronized (readerLock) {
-            if (reader == null) {
-                return false;
-            }
-            boolean result = reader.setEPCAndTIDUserMode(
-                    new InventoryModeEntity.Builder()
-                            .setMode(InventoryModeEntity.MODE_EPC_TID)
-                            .build()
-            );
-            if (!result) {
-                result = reader.setEPCAndTIDMode();
-            }
-            return result;
-        }
+        return RfidReadResult.success(
+                decodedTag.getTid(),
+                decodedTag.getCode(),
+                decodedTag.getEpcHex(),
+                decodedTag.getScannedAt()
+        );
     }
 
     private void stopContinuousInventory() {
-        synchronized (readerLock) {
-            if (reader == null) {
-                readerInventoryRunning = false;
-                return;
-            }
-            try {
-                if (readerInventoryRunning || reader.isInventorying()) {
-                    reader.stopInventory();
-                }
-            } catch (Exception ignored) {
-            }
-            try {
-                reader.setInventoryCallback(null);
-            } catch (Exception ignored) {
-            }
-            readerInventoryRunning = false;
-        }
+        continuousInventorySession.stop();
     }
 
     private void releaseBarcodeSession() {
-        if (!barcodeSessionAcquired) {
-            return;
-        }
-        barcodeService.release();
-        barcodeSessionAcquired = false;
+        qrScannerSession.releaseSession();
     }
 
     private void releaseReader() {
-        synchronized (readerLock) {
-            if (reader == null) {
-                readerReady = false;
-                return;
-            }
-            stopContinuousInventory();
-            try {
-                if (previousInventoryMode != null) {
-                    reader.setEPCAndTIDUserMode(previousInventoryMode);
-                }
-            } catch (Exception ignored) {
-            }
-            try {
-                reader.free();
-            } catch (Exception ignored) {
-            }
-            reader = null;
-            previousInventoryMode = null;
-            readerReady = false;
-            inventoryRunningTab = ScreenTab.CHECKOUT;
-        }
+        continuousInventorySession.release();
+        inventoryRunningTab = ScreenTab.CHECKOUT;
     }
 
     private void dispatchRfidScanResult(ScreenTab targetTab, RfidReadResult result, boolean suppressDuplicateToast) {
@@ -508,6 +399,18 @@ public final class CheckoutScannerController implements BarcodeScannerListener {
         if (!started || callback == null) {
             return;
         }
+        if (qrScanRequestedAtMs > 0L) {
+            long durationMs = Math.max(0L, SystemClock.elapsedRealtime() - qrScanRequestedAtMs);
+            DebugEventLogger.duration(
+                    logRepository,
+                    screenName(qrRequestedTab),
+                    FLOW_QR,
+                    "scan_result",
+                    "code=" + abbreviate(code),
+                    durationMs
+            );
+            qrScanRequestedAtMs = -1L;
+        }
         mainHandler.post(() -> callback.onQrScanResult(code, timestamp));
     }
 
@@ -516,6 +419,20 @@ public final class CheckoutScannerController implements BarcodeScannerListener {
         if (!started || callback == null) {
             return;
         }
+        String detail = message == null ? "" : message.trim();
+        if (qrScanRequestedAtMs > 0L) {
+            long durationMs = Math.max(0L, SystemClock.elapsedRealtime() - qrScanRequestedAtMs);
+            detail = detail.isEmpty() ? "durationMs=" + durationMs : detail + " | durationMs=" + durationMs;
+            qrScanRequestedAtMs = -1L;
+        }
+        DebugEventLogger.error(
+                logRepository,
+                screenName(qrRequestedTab),
+                FLOW_QR,
+                "scan_error",
+                AppErrorCodes.QR_SCAN_FAILED,
+                detail
+        );
         dispatchScannerError(message);
         dispatchScannerStateChanged();
     }
@@ -528,32 +445,16 @@ public final class CheckoutScannerController implements BarcodeScannerListener {
         return RfidTagNormalizer.normalizeHex(value);
     }
 
-    private String readTidFromBank(String epcHex) {
-        synchronized (readerLock) {
-            if (reader == null || epcHex == null || epcHex.trim().isEmpty()) {
-                return "";
-            }
-            try {
-                String tid = reader.readData(
-                        "00000000",
-                        RFIDWithUHFUART.Bank_EPC,
-                        32,
-                        epcHex.trim().length() * 4,
-                        epcHex.trim(),
-                        RFIDWithUHFUART.Bank_TID,
-                        0,
-                        6
-                );
-                return RfidTagNormalizer.sanitizeTid(tid);
-            } catch (Exception exception) {
-                Log.e(TAG_DEMO_UHF, "[DEMO_UHF] read TID bank failed", exception);
-                return "";
-            }
-        }
+    private String screenName(ScreenTab tab) {
+        return tab == ScreenTab.CHECKIN ? "Check In" : "Check Out";
     }
 
-    private String describeTab(ScreenTab tab) {
-        return tab == ScreenTab.CHECKIN ? "Check In" : "Check Out";
+    private String abbreviate(String value) {
+        String safeValue = safe(value).trim();
+        if (safeValue.length() <= 48) {
+            return safeValue;
+        }
+        return safeValue.substring(0, 48) + "...";
     }
 
     private String safe(String value) {

@@ -6,35 +6,63 @@ import android.view.ViewGroup;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.recyclerview.widget.DiffUtil;
+import androidx.recyclerview.widget.ListAdapter;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.idocean.asset.R;
 import com.google.android.material.button.MaterialButton;
+import com.idocean.asset.R;
 import com.idocean.asset.model.CheckoutAssetItem;
 import com.idocean.asset.utils.TimeFormatUtils;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class CheckoutAssetAdapter extends RecyclerView.Adapter<CheckoutAssetAdapter.ViewHolder> {
+public class CheckoutAssetAdapter extends ListAdapter<CheckoutAssetItem, CheckoutAssetAdapter.ViewHolder> {
+
+    private static final DiffUtil.ItemCallback<CheckoutAssetItem> DIFF_CALLBACK =
+            new DiffUtil.ItemCallback<CheckoutAssetItem>() {
+                @Override
+                public boolean areItemsTheSame(@NonNull CheckoutAssetItem oldItem, @NonNull CheckoutAssetItem newItem) {
+                    return sameValue(oldItem.getIdentityKey(), newItem.getIdentityKey());
+                }
+
+                @Override
+                public boolean areContentsTheSame(@NonNull CheckoutAssetItem oldItem, @NonNull CheckoutAssetItem newItem) {
+                    return oldItem.getScannedAt() == newItem.getScannedAt()
+                            && oldItem.isMatchedFromCache() == newItem.isMatchedFromCache()
+                            && sameValue(oldItem.getTid(), newItem.getTid())
+                            && sameValue(oldItem.getCode(), newItem.getCode())
+                            && sameValue(oldItem.getAssetName(), newItem.getAssetName())
+                            && sameValue(oldItem.getAssetType(), newItem.getAssetType())
+                            && sameValue(oldItem.getSerialNumber(), newItem.getSerialNumber())
+                            && sameValue(oldItem.getDepartment(), newItem.getDepartment())
+                            && sameValue(oldItem.getAssignedUser(), newItem.getAssignedUser())
+                            && sameValue(oldItem.getLocation(), newItem.getLocation())
+                            && sameValue(oldItem.getScanSource(), newItem.getScanSource());
+                }
+            };
 
     public interface OnRemoveClickListener {
         void onRemoveClicked(CheckoutAssetItem item);
     }
 
-    private final List<CheckoutAssetItem> items = new ArrayList<>();
     private final OnRemoveClickListener onRemoveClickListener;
 
     public CheckoutAssetAdapter(OnRemoveClickListener onRemoveClickListener) {
+        super(DIFF_CALLBACK);
         this.onRemoveClickListener = onRemoveClickListener;
+        setHasStableIds(true);
     }
 
     public void submitItems(List<CheckoutAssetItem> newItems) {
-        items.clear();
-        if (newItems != null) {
-            items.addAll(newItems);
-        }
-        notifyDataSetChanged();
+        super.submitList(newItems == null ? new ArrayList<>() : new ArrayList<>(newItems));
+    }
+
+    @Override
+    public long getItemId(int position) {
+        CheckoutAssetItem item = getItem(position);
+        return item == null ? RecyclerView.NO_ID : item.getIdentityKey().hashCode();
     }
 
     @NonNull
@@ -46,7 +74,7 @@ public class CheckoutAssetAdapter extends RecyclerView.Adapter<CheckoutAssetAdap
 
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
-        CheckoutAssetItem item = items.get(position);
+        CheckoutAssetItem item = getItem(position);
         holder.tvIndex.setText(String.format("%d.", position + 1));
         holder.tvName.setText(valueOrDash(item.getAssetName()));
         holder.tvCode.setText("Code: " + valueOrDash(item.getCode()));
@@ -82,9 +110,8 @@ public class CheckoutAssetAdapter extends RecyclerView.Adapter<CheckoutAssetAdap
         });
     }
 
-    @Override
-    public int getItemCount() {
-        return items.size();
+    private static boolean sameValue(String left, String right) {
+        return left == null ? right == null : left.equals(right);
     }
 
     private String valueOrDash(String value) {

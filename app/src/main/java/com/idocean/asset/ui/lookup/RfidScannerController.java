@@ -3,31 +3,31 @@ package com.idocean.asset.ui.lookup;
 import android.content.Context;
 
 import com.idocean.asset.R;
-import com.idocean.asset.scanner.rfid.UhfScanData;
-import com.idocean.asset.scanner.rfid.RfidTagNormalizer;
-import com.idocean.asset.utils.EpcUtils;
-import com.rscja.deviceapi.RFIDWithUHFUART;
-import com.rscja.deviceapi.entity.InventoryModeEntity;
-import com.rscja.deviceapi.entity.UHFTAGInfo;
+import com.idocean.asset.diagnostics.AppErrorCodes;
+import com.idocean.asset.diagnostics.PerfLogger;
+import com.idocean.asset.scanner.core.RfidReaderSession;
+import com.idocean.asset.scanner.core.RfidSingleScanRunner;
+import com.idocean.asset.scanner.core.RfidTagDecoder;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public final class RfidScannerController {
+    private static final String SCREEN = "Lookup";
+    private static final String FLOW_RFID_SINGLE = "rfid_single";
+
     private final ExecutorService executor;
     private final LookupScannerCallback callback;
-    private final Object readerLock = new Object();
-    private RFIDWithUHFUART reader;
-    private InventoryModeEntity previousInventoryMode;
-    private boolean readerReady;
+    private final RfidReaderSession rfidReaderSession;
     private volatile boolean started;
 
     public RfidScannerController(LookupScannerCallback callback) {
-        this(callback, Executors.newSingleThreadExecutor());
+        this(callback, new RfidReaderSession(), Executors.newSingleThreadExecutor());
     }
 
-    RfidScannerController(LookupScannerCallback callback, ExecutorService executor) {
+    RfidScannerController(LookupScannerCallback callback, RfidReaderSession rfidReaderSession, ExecutorService executor) {
         this.callback = callback;
+        this.rfidReaderSession = rfidReaderSession == null ? new RfidReaderSession() : rfidReaderSession;
         this.executor = executor;
     }
 
@@ -50,6 +50,8 @@ public final class RfidScannerController {
             return;
         }
 
+        PerfLogger.Trace trace = PerfLogger.start(SCREEN, FLOW_RFID_SINGLE, "scan_requested", "mode=single");
+        trace.markStart(null);
         callback.onScannerPreparingChanged(true);
         executor.execute(() -> {
             if (!started) {
@@ -61,136 +63,55 @@ public final class RfidScannerController {
             }
             callback.onScannerPreparingChanged(false);
             if (!result.success) {
+                String errorCode;
+                if ("Khong mo duoc dau doc UHF.".equals(result.errorMessage)) {
+                    errorCode = AppErrorCodes.RFID_INIT_FAILED;
+                } else if ("Khong chuyen duoc reader sang mode EPC + TID.".equals(result.errorMessage)) {
+                    errorCode = AppErrorCodes.RFID_MODE_FAILED;
+                } else {
+                    errorCode = AppErrorCodes.RFID_SINGLE_SCAN_FAILED;
+                }
+                trace.fail(null, "scan_failed", errorCode, result.errorMessage);
                 callback.onScannerError(result.errorMessage);
                 return;
             }
+            trace.finish(null, "scan_result", "tid=" + abbreviate(result.tid) + " | code=" + abbreviate(result.code));
             callback.onScanResult(ScanResult.rfid(result.tid, result.code, result.timestamp));
         });
     }
 
     public boolean isReady() {
-        synchronized (readerLock) {
-            return readerReady && reader != null;
-        }
+        return rfidReaderSession.isReady();
     }
 
     private RfidLookupResult readSingleRfid(Context context) {
-        synchronized (readerLock) {
-            if (!initReaderIfNeeded(context)) {
-                return RfidLookupResult.error("Khong mo duoc dau doc UHF.");
-            }
-            if (!ensureTidMode()) {
-                return RfidLookupResult.error("Khong chuyen duoc reader sang mode EPC + TID.");
-            }
-
-            UHFTAGInfo tagInfo = reader == null ? null : reader.inventorySingleTag();
-            if (tagInfo == null) {
-                return RfidLookupResult.error("Khong doc duoc the RFID.");
-            }
-
-            UhfScanData scanData = UhfScanData.from(tagInfo);
-            String tid = RfidTagNormalizer.sanitizeTid(scanData.getTid());
-            String epcHex = RfidTagNormalizer.normalizeHex(scanData.getEpcHex());
-            String code = safe(scanData.getEpcAsciiCode());
-            if (tid.isEmpty() && !epcHex.isEmpty()) {
-                tid = readTidFromBank(epcHex);
-            }
-            if (code.isEmpty()) {
-                code = EpcUtils.hexToAscii(epcHex);
-            }
-            if (tid.isEmpty()) {
-                return RfidLookupResult.error(context.getString(R.string.lookup_scanner_unknown));
-            }
-            return RfidLookupResult.success(tid, code);
+        RfidSingleScanRunner.Result result = RfidSingleScanRunner.run(
+                context,
+                rfidReaderSession,
+                "Khong mo duoc dau doc UHF.",
+                "Khong chuyen duoc reader sang mode EPC + TID.",
+                "Khong doc duoc the RFID."
+        );
+        if (!result.isSuccess()) {
+            return RfidLookupResult.error(result.getErrorMessage());
         }
-    }
-
-    private boolean initReaderIfNeeded(Context context) {
-        if (readerReady && reader != null) {
-            return true;
+        RfidTagDecoder.DecodedTag decodedTag = result.getDecodedTag();
+        if (decodedTag.getTid().isEmpty()) {
+            return RfidLookupResult.error(context.getString(R.string.lookup_scanner_unknown));
         }
-        try {
-            reader = RFIDWithUHFUART.getInstance();
-            if (reader == null) {
-                readerReady = false;
-                return false;
-            }
-            readerReady = reader.init(context.getApplicationContext());
-            if (readerReady) {
-                previousInventoryMode = reader.getEPCAndTIDUserMode();
-            }
-            return readerReady;
-        } catch (Exception exception) {
-            readerReady = false;
-            return false;
-        }
-    }
-
-    private boolean ensureTidMode() {
-        synchronized (readerLock) {
-            if (reader == null) {
-                return false;
-            }
-            boolean result = reader.setEPCAndTIDUserMode(
-                    new InventoryModeEntity.Builder()
-                            .setMode(InventoryModeEntity.MODE_EPC_TID)
-                            .build()
-            );
-            if (!result) {
-                result = reader.setEPCAndTIDMode();
-            }
-            return result;
-        }
-    }
-
-    private String readTidFromBank(String epcHex) {
-        synchronized (readerLock) {
-            if (reader == null || epcHex == null || epcHex.trim().isEmpty()) {
-                return "";
-            }
-            try {
-                return RfidTagNormalizer.sanitizeTid(
-                        reader.readData(
-                                "00000000",
-                                RFIDWithUHFUART.Bank_EPC,
-                                32,
-                                epcHex.trim().length() * 4,
-                                epcHex.trim(),
-                                RFIDWithUHFUART.Bank_TID,
-                                0,
-                                6
-                        )
-                );
-            } catch (Exception exception) {
-                return "";
-            }
-        }
+        return RfidLookupResult.success(decodedTag.getTid(), decodedTag.getCode());
     }
 
     public void release() {
-        synchronized (readerLock) {
-            if (reader == null) {
-                readerReady = false;
-                return;
-            }
-            try {
-                if (previousInventoryMode != null) {
-                    reader.setEPCAndTIDUserMode(previousInventoryMode);
-                }
-            } catch (Exception ignored) {
-            }
-            try {
-                reader.free();
-            } catch (Exception ignored) {
-            }
-            reader = null;
-            previousInventoryMode = null;
-            readerReady = false;
-        }
+        rfidReaderSession.release();
     }
 
-    private String safe(String value) {
-        return value == null ? "" : value;
+    private String abbreviate(String value) {
+        String safeValue = value == null ? "" : value.trim();
+        if (safeValue.length() <= 48) {
+            return safeValue;
+        }
+        return safeValue.substring(0, 48) + "...";
     }
 
     private static final class RfidLookupResult {

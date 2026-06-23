@@ -43,7 +43,7 @@ public class AssetHandoverRequestDtoTest {
                 "SN-01",
                 "IT",
                 "Truong Vu",
-                "Lầu 5 - TT16",
+                "L\u1ea7u 5 - TT16",
                 "Dang su dung",
                 "",
                 "",
@@ -67,14 +67,14 @@ public class AssetHandoverRequestDtoTest {
         assertEquals("Thang Nguyen", payload.get("fromUser").getAsString());
         assertEquals("HR", payload.get("oldDepartment").getAsString());
         assertEquals("HR", payload.get("fromDepartment").getAsString());
-        assertEquals("Lầu 5 - TT16", payload.get("oldLocation").getAsString());
-        assertEquals("Lầu 5 - TT16", payload.get("fromLocation").getAsString());
+        assertEquals("L\u1ea7u 5 - TT16", payload.get("oldLocation").getAsString());
+        assertEquals("L\u1ea7u 5 - TT16", payload.get("fromLocation").getAsString());
         assertEquals("Truong Vu", payload.get("newUser").getAsString());
         assertEquals("Truong Vu", payload.get("toUser").getAsString());
         assertEquals("IT", payload.get("newDepartment").getAsString());
         assertEquals("IT", payload.get("toDepartment").getAsString());
-        assertEquals("Lầu 5 - TT16", payload.get("newLocation").getAsString());
-        assertEquals("Lầu 5 - TT16", payload.get("toLocation").getAsString());
+        assertEquals("L\u1ea7u 5 - TT16", payload.get("newLocation").getAsString());
+        assertEquals("L\u1ea7u 5 - TT16", payload.get("toLocation").getAsString());
         assertEquals("2026-04-08", payload.get("handoverDate").getAsString());
         assertEquals("Checked Out", payload.get("status").getAsString());
         assertEquals("Checked Out", payload.get("action").getAsString());

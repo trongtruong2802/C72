@@ -16,3 +16,7 @@ local.properties
 .gradle/
 .gradle-home/
 .gradle-home-syncv2/
+.gradle/
+.gradle-home/
+.gradle-temp/
+build/

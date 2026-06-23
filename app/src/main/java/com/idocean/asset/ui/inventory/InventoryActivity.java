@@ -5,10 +5,8 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.os.SystemClock;
 import android.text.Editable;
 import android.text.TextWatcher;
-import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
 import android.widget.Button;
@@ -34,6 +32,10 @@ import com.idocean.asset.data.dto.InventoryCheckinBatchRequestDto;
 import com.idocean.asset.data.repository.InventoryCheckinService;
 import com.idocean.asset.data.repository.InventoryCheckinUploadResult;
 import com.idocean.asset.data.repository.LogRepository;
+import com.idocean.asset.diagnostics.AppFailureReporter;
+import com.idocean.asset.diagnostics.AppErrorCodes;
+import com.idocean.asset.diagnostics.DebugEventLogger;
+import com.idocean.asset.diagnostics.PerfLogger;
 import com.idocean.asset.data.repository.SessionRepository;
 import com.idocean.asset.export.InventoryCsvExportManager;
 import com.idocean.asset.model.Asset;
@@ -45,7 +47,6 @@ import com.idocean.asset.storage.AppPermissionManager;
 import com.idocean.asset.utils.HardwareKeyUtils;
 import com.idocean.asset.utils.NetworkUtils;
 import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -56,8 +57,13 @@ import java.util.concurrent.Executors;
  * Man kiem ke bam truc tiep logic UHF goc cua demo Chainway de dam bao lay duoc TID that.
  */
 public class InventoryActivity extends AppCompatActivity implements ScannerTriggerHandler, InventoryScannerController.Callback {
-    private static final String TAG_INVENTORY = "INVENTORY";
-    private static final String TAG_INV_PERF = "INV_PERF";
+    private static final String SCREEN = "Inventory";
+    private static final String FLOW_SCREEN_OPEN = "screen_open";
+    private static final String FLOW_CACHE_LOAD = "cache_load";
+    private static final String FLOW_SOURCE_PREPARE = "source_prepare";
+    private static final String FLOW_FILTER = "filter_search";
+    private static final long FILTER_DEBOUNCE_MS = 180L;
+    private static final long SCAN_REFRESH_DEBOUNCE_MS = 75L;
 
     private final AssetRepository assetRepository = AssetRepository.getInstance();
     private final LogRepository logRepository = LogRepository.getInstance();
@@ -71,6 +77,9 @@ public class InventoryActivity extends AppCompatActivity implements ScannerTrigg
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final ExecutorService backgroundExecutor = Executors.newSingleThreadExecutor();
     private InventoryScannerController inventoryScannerController;
+    private InventoryUiRenderer uiRenderer;
+    private final Runnable inventorySearchRefreshRunnable = this::runInventorySearchRefresh;
+    private final Runnable inventoryScanRefreshRunnable = this::runInventoryScanRefresh;
 
     private final ActivityResultLauncher<String[]> importCsvLauncher =
             registerForActivityResult(new ActivityResultContracts.OpenDocument(), this::onCsvSelected);
@@ -109,24 +118,38 @@ public class InventoryActivity extends AppCompatActivity implements ScannerTrigg
     private RecyclerView rvInventoryResults;
     private TextView tvInventoryEmpty;
 
-    private long openPerfStartMs;
+    private PerfLogger.Trace screenOpenTrace;
+    private boolean initialSourceResolved;
+    private boolean sourceLoadInProgress;
+    private long activeSourceLoadToken;
     private boolean exporting;
     private boolean uploadingCheckin;
+    private boolean pendingInventoryScrollToTop;
+    private boolean inventoryScanRefreshScheduled;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         AppRuntimeContext.init(getApplicationContext());
-        openPerfStartMs = SystemClock.elapsedRealtime();
-        Log.d(TAG_INV_PERF, "[INV_PERF] onCreate start");
+        screenOpenTrace = PerfLogger.start(SCREEN, FLOW_SCREEN_OPEN, "onCreate", "activity=InventoryActivity");
+        screenOpenTrace.markStart(logRepository);
         setContentView(R.layout.activity_ido_inventory);
 
         sessionRepository = new SessionRepository(getApplicationContext());
         inventoryController.setCurrentSession(sessionRepository.getSession());
         inventoryScannerController = new InventoryScannerController(this, logRepository);
         bindViews();
+        uiRenderer = new InventoryUiRenderer(
+                adapter,
+                rvInventoryResults,
+                tvInventoryEmpty,
+                tvSummaryTotal,
+                tvSummaryDatasetTotal,
+                tvSummaryChecked,
+                tvScannerStatus,
+                btnInventoryStart
+        );
         setupRecyclerView();
-        Log.d(TAG_INV_PERF, "[INV_PERF] init recycler end +" + elapsedFromOpen() + "ms");
         setupControls();
         updateSessionInfo();
         updateScannerStatus();
@@ -134,7 +157,10 @@ public class InventoryActivity extends AppCompatActivity implements ScannerTrigg
             if (isFinishing() || isDestroyed()) {
                 return;
             }
-            Log.d(TAG_INV_PERF, "[INV_PERF] first UI render end +" + elapsedFromOpen() + "ms");
+            if (screenOpenTrace != null) {
+                screenOpenTrace.finish(logRepository, "first_render", "contentReady=true");
+                screenOpenTrace = null;
+            }
             hydrateCachedAssetsAsync();
             scheduleScannerWarmup();
         });
@@ -143,7 +169,6 @@ public class InventoryActivity extends AppCompatActivity implements ScannerTrigg
     @Override
     public void onResume() {
         super.onResume();
-        Log.d(TAG_INV_PERF, "[INV_PERF] onResume +" + elapsedFromOpen() + "ms");
         inventoryController.setCurrentSession(sessionRepository.getSession());
         inventoryScannerController.onStart(this);
         updateSessionInfo();
@@ -162,6 +187,8 @@ public class InventoryActivity extends AppCompatActivity implements ScannerTrigg
         if (inventoryScannerController != null) {
             inventoryScannerController.shutdown();
         }
+        mainHandler.removeCallbacks(inventorySearchRefreshRunnable);
+        mainHandler.removeCallbacks(inventoryScanRefreshRunnable);
         backgroundExecutor.shutdownNow();
         super.onDestroy();
     }
@@ -186,7 +213,7 @@ public class InventoryActivity extends AppCompatActivity implements ScannerTrigg
 
     @Override
     public void onScannerTriggerDown() {
-        inventoryScannerController.handleTriggerDown(this, rbScannerQr.isChecked(), swSingleScan.isChecked());
+        startSelectedScanner();
     }
 
     @Override
@@ -279,8 +306,9 @@ public class InventoryActivity extends AppCompatActivity implements ScannerTrigg
 
             @Override
             public void afterTextChanged(Editable editable) {
-                inventoryController.setCurrentSearchQuery(editable == null ? "" : editable.toString());
-                refreshInventoryResults(false);
+                String query = editable == null ? "" : editable.toString();
+                inventoryController.setCurrentSearchQuery(query);
+                scheduleInventorySearchRefresh();
             }
         });
         updatePrimaryActionButton();
@@ -288,13 +316,42 @@ public class InventoryActivity extends AppCompatActivity implements ScannerTrigg
     }
 
     private void hydrateCachedAssetsAsync() {
-        List<Asset> cachedAssets = assetRepository.getCachedAssets();
-        if (cachedAssets.isEmpty()) {
-            tvDataSourceStatus.setText(getString(R.string.inventory_source_empty));
-            refreshInventoryResults(false);
-            return;
-        }
-        applySourceAssetsAsync(cachedAssets, assetRepository.getLastSource(), false);
+        long requestToken = beginSourceLoad();
+        PerfLogger.Trace trace = PerfLogger.start(SCREEN, FLOW_CACHE_LOAD, "load_requested", "source=runtime_cache");
+        trace.markStart(logRepository);
+        assetRepository.loadCacheSnapshotAsync(snapshot -> {
+            if (isFinishing() || isDestroyed()) {
+                return;
+            }
+            if (!isCurrentSourceLoad(requestToken)) {
+                logStaleSourceCallbackIgnored("runtime_cache", requestToken);
+                return;
+            }
+            try {
+                int assetCount = snapshot == null ? 0 : snapshot.getAssetCount();
+                String source = snapshot == null ? "CACHE" : snapshot.getSource();
+                trace.finish(logRepository, "load_completed", "assetCount=" + assetCount + " | source=" + source);
+                if (assetCount <= 0) {
+                    completeSourceLoad(requestToken);
+                    cancelPendingInventoryRefreshes();
+                    tvDataSourceStatus.setText(getString(R.string.inventory_source_empty));
+                    refreshInventoryResults(false);
+                    return;
+                }
+                applySourceAssetsAsync(snapshot.getAssets(), source, false, requestToken);
+            } catch (Exception exception) {
+                failSourceLoad(requestToken);
+                AppFailureReporter.report(
+                        logRepository,
+                        trace,
+                        SCREEN,
+                        FLOW_CACHE_LOAD,
+                        "load_failed",
+                        AppErrorCodes.UI_RENDER_FAILED,
+                        exception
+                );
+            }
+        });
     }
 
     private void updateSessionInfo() {
@@ -327,18 +384,31 @@ public class InventoryActivity extends AppCompatActivity implements ScannerTrigg
             showToast(getString(R.string.inventory_source_api_offline));
             return;
         }
+        long requestToken = beginSourceLoad();
         tvDataSourceStatus.setText(getString(R.string.inventory_source_loading_api));
         assetRepository.loadAssetsFromApi(new AssetRepositoryCallback() {
             @Override
             public void onSuccess(List<Asset> assets, String message) {
-                applySourceAssetsAsync(assets, getString(R.string.inventory_source_api_label), true);
+                if (!isCurrentSourceLoad(requestToken)) {
+                    logStaleSourceCallbackIgnored("api", requestToken);
+                    return;
+                }
+                applySourceAssetsAsync(assets, getString(R.string.inventory_source_api_label), true, requestToken);
                 showToast(message);
             }
 
             @Override
             public void onError(String message) {
+                if (!isCurrentSourceLoad(requestToken)) {
+                    logStaleSourceCallbackIgnored("api", requestToken);
+                    return;
+                }
+                failSourceLoad(requestToken);
                 tvDataSourceStatus.setText(message);
                 showToast(message);
+                if (!initialSourceResolved) {
+                    hydrateCachedAssetsAsync();
+                }
             }
         });
     }
@@ -357,44 +427,92 @@ public class InventoryActivity extends AppCompatActivity implements ScannerTrigg
             );
         } catch (Exception ignored) {
         }
+        long requestToken = beginSourceLoad();
         tvDataSourceStatus.setText(getString(R.string.inventory_source_loading_csv));
         assetRepository.importAssetsFromCsv(this, uri, new AssetRepositoryCallback() {
             @Override
             public void onSuccess(List<Asset> assets, String message) {
-                applySourceAssetsAsync(assets, getString(R.string.inventory_source_csv_label), true);
+                if (!isCurrentSourceLoad(requestToken)) {
+                    logStaleSourceCallbackIgnored("csv", requestToken);
+                    return;
+                }
+                applySourceAssetsAsync(assets, getString(R.string.inventory_source_csv_label), true, requestToken);
                 showToast(message);
             }
 
             @Override
             public void onError(String message) {
+                if (!isCurrentSourceLoad(requestToken)) {
+                    logStaleSourceCallbackIgnored("csv", requestToken);
+                    return;
+                }
+                failSourceLoad(requestToken);
                 tvDataSourceStatus.setText(message);
                 showToast(message);
+                if (!initialSourceResolved) {
+                    hydrateCachedAssetsAsync();
+                }
             }
         });
     }
 
-    private void applySourceAssetsAsync(List<Asset> assets, String sourceLabel, boolean scrollToTop) {
+    private void applySourceAssetsAsync(List<Asset> assets, String sourceLabel, boolean scrollToTop, long requestToken) {
         List<Asset> safeAssets = assets == null ? new ArrayList<>() : new ArrayList<>(assets);
-        Log.d(TAG_INV_PERF, "[INV_PERF] build asset maps start +" + elapsedFromOpen() + "ms");
+        PerfLogger.Trace trace = PerfLogger.start(
+                SCREEN,
+                FLOW_SOURCE_PREPARE,
+                "prepare_requested",
+                "assetCount=" + safeAssets.size() + " | source=" + valueOrDash(sourceLabel)
+        );
+        trace.markStart(logRepository);
         backgroundExecutor.execute(() -> {
+            if (!isCurrentSourceLoad(requestToken)) {
+                return;
+            }
             InventoryController.SourceSnapshot snapshot = inventoryController.prepareSourceAssets(safeAssets, sourceLabel);
             mainHandler.post(() -> {
                 if (isFinishing() || isDestroyed()) {
                     return;
                 }
-                InventoryController.SourceLoadResult loadResult = inventoryController.applySourceAssets(snapshot);
-                tvDataSourceStatus.setText(getString(
-                        R.string.inventory_source_status,
-                        valueOrDash(loadResult.getSourceLabel()),
-                        getString(R.string.inventory_source_count_assets, loadResult.getSourceCount())
-                ));
-                refreshInventoryResults(scrollToTop);
-                Log.d(TAG_INV_PERF, "[INV_PERF] build asset maps end +" + elapsedFromOpen() + "ms");
+                if (!isCurrentSourceLoad(requestToken)) {
+                    logStaleSourceCallbackIgnored(valueOrDash(sourceLabel), requestToken);
+                    return;
+                }
+                try {
+                    InventoryController.SourceLoadResult loadResult = inventoryController.applySourceAssets(snapshot);
+                    completeSourceLoad(requestToken);
+                    cancelPendingInventoryRefreshes();
+                    tvDataSourceStatus.setText(getString(
+                            R.string.inventory_source_status,
+                            valueOrDash(loadResult.getSourceLabel()),
+                            getString(R.string.inventory_source_count_assets, loadResult.getSourceCount())
+                    ));
+                    refreshInventoryResults(scrollToTop);
+                    trace.finish(
+                            logRepository,
+                            "prepare_completed",
+                            "sourceCount=" + loadResult.getSourceCount() + " | source=" + valueOrDash(loadResult.getSourceLabel())
+                    );
+                } catch (Exception exception) {
+                    failSourceLoad(requestToken);
+                    AppFailureReporter.report(
+                            logRepository,
+                            trace,
+                            SCREEN,
+                            FLOW_SOURCE_PREPARE,
+                            "prepare_failed",
+                            AppErrorCodes.UI_RENDER_FAILED,
+                            exception
+                    );
+                }
             });
         });
     }
 
     private void startSelectedScanner() {
+        if (!ensureInventorySourceReadyForScan()) {
+            return;
+        }
         if (inventoryScannerController != null) {
             inventoryScannerController.handleTriggerDown(
                     this,
@@ -422,8 +540,8 @@ public class InventoryActivity extends AppCompatActivity implements ScannerTrigg
 
     @Override
     public void onRfidSingleScanCompleted() {
-        if (tvScannerStatus != null) {
-            tvScannerStatus.setText(getString(R.string.inventory_scanner_rfid_single_done));
+        if (uiRenderer != null) {
+            uiRenderer.renderScannerStatus(getString(R.string.inventory_scanner_rfid_single_done));
         }
         updatePrimaryActionButton();
     }
@@ -452,7 +570,7 @@ public class InventoryActivity extends AppCompatActivity implements ScannerTrigg
                 valueOrDash(result.getDisplayTid()),
                 valueOrDash(result.getDisplayEpcHex())
         ));
-        refreshInventoryResults(true);
+        scheduleInventoryScanRefresh(true);
     }
 
     private void processQrResult(String code, long timestamp) {
@@ -465,18 +583,19 @@ public class InventoryActivity extends AppCompatActivity implements ScannerTrigg
             return;
         }
         tvScannerStatus.setText(getString(R.string.inventory_scanner_qr_matched, valueOrDash(code)));
-        refreshInventoryResults(true);
+        scheduleInventoryScanRefresh(true);
     }
 
     private void clearSessionResults() {
         stopAllScanning();
+        cancelPendingInventoryRefreshes();
         inventoryController.clearSessionResults();
         refreshInventoryResults(false);
         showToast(getString(R.string.inventory_session_cleared));
     }
 
     private void exportInventoryResults() {
-        Log.d("EXPORT", "[EXPORT] export button clicked");
+        DebugEventLogger.info(logRepository, SCREEN, "export_inventory", "export_requested", "source=button");
         if (uploadingCheckin) {
             showToast(getString(R.string.inventory_checkin_running));
             return;
@@ -508,7 +627,6 @@ public class InventoryActivity extends AppCompatActivity implements ScannerTrigg
                     showToast(getString(R.string.inventory_export_done_csv, file.getAbsolutePath()));
                 });
             } catch (Exception exception) {
-                Log.e("EXPORT", "[EXPORT] export failed", exception);
                 logRepository.logError("ERROR", "Export ket qua kiem ke that bai", exception.getMessage());
                 mainHandler.post(() -> {
                     exporting = false;
@@ -679,25 +797,48 @@ public class InventoryActivity extends AppCompatActivity implements ScannerTrigg
 
     private void refreshInventoryResults(boolean scrollToTop) {
         List<InventorySessionItem> items = inventoryController.buildOrderedItems();
-        adapter.submitList(items);
-        updateSummary();
-        boolean hasItems = !items.isEmpty();
-        rvInventoryResults.setVisibility(hasItems ? View.VISIBLE : View.GONE);
-        if (tvInventoryEmpty != null) {
-            tvInventoryEmpty.setVisibility(hasItems ? View.GONE : View.VISIBLE);
-            tvInventoryEmpty.setText(resolveEmptyStateMessage());
-        }
-        Log.d(TAG_INVENTORY, "[INVENTORY] item count after update=" + items.size());
-        if (scrollToTop && !items.isEmpty()) {
-            rvInventoryResults.scrollToPosition(0);
-        }
+        InventoryController.InventorySummary summary = inventoryController.buildSummary();
+        uiRenderer.renderResults(items, summary, scrollToTop, resolveEmptyStateMessage());
     }
 
-    private void updateSummary() {
-        InventoryController.InventorySummary summary = inventoryController.buildSummary();
-        tvSummaryTotal.setText(String.valueOf(summary.getScannedCount()));
-        tvSummaryDatasetTotal.setText(String.valueOf(summary.getDatasetCount()));
-        tvSummaryChecked.setText(String.valueOf(summary.getMatchedCount()));
+    private void scheduleInventorySearchRefresh() {
+        mainHandler.removeCallbacks(inventorySearchRefreshRunnable);
+        mainHandler.postDelayed(inventorySearchRefreshRunnable, FILTER_DEBOUNCE_MS);
+    }
+
+    private void runInventorySearchRefresh() {
+        String query = inventoryController.getCurrentSearchQuery();
+        PerfLogger.Trace trace = PerfLogger.start(
+                SCREEN,
+                FLOW_FILTER,
+                "filter_requested",
+                "queryLength=" + safe(query).trim().length()
+        );
+        refreshInventoryResults(false);
+        trace.finish(logRepository, "filter_completed", "queryLength=" + safe(query).trim().length());
+    }
+
+    private void scheduleInventoryScanRefresh(boolean scrollToTop) {
+        pendingInventoryScrollToTop = pendingInventoryScrollToTop || scrollToTop;
+        if (inventoryScanRefreshScheduled) {
+            return;
+        }
+        inventoryScanRefreshScheduled = true;
+        mainHandler.postDelayed(inventoryScanRefreshRunnable, SCAN_REFRESH_DEBOUNCE_MS);
+    }
+
+    private void runInventoryScanRefresh() {
+        inventoryScanRefreshScheduled = false;
+        boolean scrollToTop = pendingInventoryScrollToTop;
+        pendingInventoryScrollToTop = false;
+        refreshInventoryResults(scrollToTop);
+    }
+
+    private void cancelPendingInventoryRefreshes() {
+        inventoryScanRefreshScheduled = false;
+        pendingInventoryScrollToTop = false;
+        mainHandler.removeCallbacks(inventorySearchRefreshRunnable);
+        mainHandler.removeCallbacks(inventoryScanRefreshRunnable);
     }
 
     private void updateScannerStatus() {
@@ -707,23 +848,26 @@ public class InventoryActivity extends AppCompatActivity implements ScannerTrigg
         if (inventoryScannerController == null) {
             return;
         }
+        String scannerStatus;
         if (rbScannerQr != null && rbScannerQr.isChecked()) {
             if (inventoryScannerController.isQrScanning()) {
-                tvScannerStatus.setText(getString(R.string.inventory_scanner_qr_running));
+                scannerStatus = getString(R.string.inventory_scanner_qr_running);
             } else {
-                tvScannerStatus.setText(inventoryScannerController.getQrStatusMessage());
+                scannerStatus = inventoryScannerController.getQrStatusMessage();
             }
+            uiRenderer.renderScannerStatus(scannerStatus);
             updatePrimaryActionButton();
             return;
         }
 
         if (inventoryScannerController.isDemoInventoryRunning()) {
-            tvScannerStatus.setText(getString(R.string.inventory_scanner_rfid_running));
+            scannerStatus = getString(R.string.inventory_scanner_rfid_running);
         } else if (inventoryScannerController.isDemoReaderReady()) {
-            tvScannerStatus.setText(getString(R.string.inventory_scanner_uhf_ready));
+            scannerStatus = getString(R.string.inventory_scanner_uhf_ready);
         } else {
-            tvScannerStatus.setText(getString(R.string.inventory_scanner_uhf_not_ready));
+            scannerStatus = getString(R.string.inventory_scanner_uhf_not_ready);
         }
+        uiRenderer.renderScannerStatus(scannerStatus);
         updatePrimaryActionButton();
     }
 
@@ -732,12 +876,7 @@ public class InventoryActivity extends AppCompatActivity implements ScannerTrigg
     }
 
     private void updatePrimaryActionButton() {
-        if (btnInventoryStart == null) {
-            return;
-        }
-        btnInventoryStart.setText(isAnyScannerRunning()
-                ? R.string.inventory_stop_action
-                : R.string.inventory_start_action);
+        uiRenderer.renderPrimaryAction(isAnyScannerRunning());
     }
 
     private String resolveEmptyStateMessage() {
@@ -772,11 +911,54 @@ public class InventoryActivity extends AppCompatActivity implements ScannerTrigg
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
     }
 
-    private long elapsedFromOpen() {
-        if (openPerfStartMs <= 0L) {
-            return 0L;
+    private long beginSourceLoad() {
+        sourceLoadInProgress = true;
+        activeSourceLoadToken += 1L;
+        return activeSourceLoadToken;
+    }
+
+    private boolean isCurrentSourceLoad(long requestToken) {
+        return requestToken == activeSourceLoadToken;
+    }
+
+    private void completeSourceLoad(long requestToken) {
+        if (!isCurrentSourceLoad(requestToken)) {
+            return;
         }
-        return SystemClock.elapsedRealtime() - openPerfStartMs;
+        initialSourceResolved = true;
+        sourceLoadInProgress = false;
+    }
+
+    private void failSourceLoad(long requestToken) {
+        if (!isCurrentSourceLoad(requestToken)) {
+            return;
+        }
+        sourceLoadInProgress = false;
+    }
+
+    private boolean ensureInventorySourceReadyForScan() {
+        if (initialSourceResolved && !sourceLoadInProgress) {
+            return true;
+        }
+        DebugEventLogger.info(
+                logRepository,
+                SCREEN,
+                FLOW_CACHE_LOAD,
+                "source_not_ready",
+                "request=scan | resolved=" + initialSourceResolved + " | loading=" + sourceLoadInProgress
+        );
+        showToast("Du lieu kiem ke dang khoi tao. Vui long thu lai sau.");
+        return false;
+    }
+
+    private void logStaleSourceCallbackIgnored(String source, long requestToken) {
+        DebugEventLogger.info(
+                logRepository,
+                SCREEN,
+                FLOW_CACHE_LOAD,
+                "stale_source_callback_ignored",
+                "source=" + valueOrDash(source) + " | requestToken=" + requestToken + " | activeToken=" + activeSourceLoadToken
+        );
     }
 
 }

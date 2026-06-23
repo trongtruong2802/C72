@@ -4,6 +4,9 @@ import android.content.Context;
 import android.os.Handler;
 
 import com.idocean.asset.AppRuntimeContext;
+import com.idocean.asset.diagnostics.AppErrorCodes;
+import com.idocean.asset.diagnostics.DebugEventLogger;
+import com.idocean.asset.diagnostics.PerfLogger;
 import com.idocean.asset.model.Asset;
 
 import java.io.IOException;
@@ -16,6 +19,8 @@ import java.util.concurrent.Executors;
 final class AssetCacheStore {
     private static final String SOURCE_CACHE = "CACHE";
     private static final String SOURCE_DISK_CACHE = "DISK_CACHE";
+    private static final String SCREEN = "Cache";
+    private static final String FLOW_CACHE_IO = "cache_io";
 
     private final AssetDiskCacheStore diskCacheStore;
     private final AssetFilterService assetFilterService;
@@ -54,8 +59,15 @@ final class AssetCacheStore {
 
     void loadCacheSnapshotAsync(Handler mainHandler, AssetRepository.CacheSnapshotCallback callback) {
         cacheIoExecutor.execute(() -> {
+            PerfLogger.Trace trace = PerfLogger.start(SCREEN, FLOW_CACHE_IO, "snapshot_requested", "mode=async");
+            trace.markStart(logRepository);
             ensureDiskCacheLoaded();
             AssetRepository.CacheSnapshot snapshot = snapshotCurrentState();
+            trace.finish(
+                    logRepository,
+                    "snapshot_ready",
+                    "assetCount=" + snapshot.getAssetCount() + " | source=" + snapshot.getSource()
+            );
             if (callback == null || mainHandler == null) {
                 return;
             }
@@ -149,6 +161,14 @@ final class AssetCacheStore {
                     snapshot.assets.size() + " asset(s) | " + lastSource
             );
         } catch (IOException exception) {
+            DebugEventLogger.error(
+                    logRepository,
+                    SCREEN,
+                    FLOW_CACHE_IO,
+                    "cache_read_failed",
+                    AppErrorCodes.CACHE_READ_FAILED,
+                    exception.getMessage()
+            );
             logRepository.logError("CACHE", "Khong doc duoc cache tai san noi bo", exception.getMessage());
             diskCacheStore.clear(appContext);
         }
@@ -174,6 +194,14 @@ final class AssetCacheStore {
             try {
                 persistCacheNow(appContext, snapshot, source);
             } catch (IOException exception) {
+                DebugEventLogger.error(
+                        logRepository,
+                        SCREEN,
+                        FLOW_CACHE_IO,
+                        "cache_write_failed",
+                        AppErrorCodes.CACHE_WRITE_FAILED,
+                        exception.getMessage()
+                );
                 logRepository.logError("CACHE", "Khong luu duoc cache tai san noi bo", exception.getMessage());
             }
         });

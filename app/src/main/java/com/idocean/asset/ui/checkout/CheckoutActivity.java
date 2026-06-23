@@ -34,6 +34,11 @@ import com.idocean.asset.data.repository.AssetRepository;
 import com.idocean.asset.data.repository.CheckoutCsvRepository;
 import com.idocean.asset.data.repository.LogRepository;
 import com.idocean.asset.data.repository.SessionRepository;
+import com.idocean.asset.diagnostics.AppFailureReporter;
+import com.idocean.asset.diagnostics.AppErrorCodes;
+import com.idocean.asset.diagnostics.DebugEventLogger;
+import com.idocean.asset.diagnostics.PerfLogger;
+import com.idocean.asset.model.Asset;
 import com.idocean.asset.model.CheckInResultItem;
 import com.idocean.asset.model.CheckOutFormData;
 import com.idocean.asset.model.CheckoutAssetItem;
@@ -53,6 +58,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class CheckoutActivity extends AppCompatActivity implements ScannerTriggerHandler, CheckoutScannerController.Callback {
+    private static final String SCREEN = "Checkout";
+    private static final String FLOW_SCREEN_OPEN = "screen_open";
+    private static final String FLOW_CACHE_LOAD = "cache_load";
+    private static final long SCAN_REFRESH_DEBOUNCE_MS = 75L;
+
     enum ScreenTab {
         CHECKOUT,
         CHECKIN
@@ -67,9 +77,12 @@ public class CheckoutActivity extends AppCompatActivity implements ScannerTrigge
     private final ExecutorService ioExecutor = Executors.newSingleThreadExecutor();
     private final CheckoutController checkoutController = new CheckoutController(csvRepository, logRepository);
     private final CheckoutScannerController checkoutScannerController = new CheckoutScannerController(this, logRepository);
+    private final Runnable checkoutRefreshRunnable = this::runScheduledCheckoutRefresh;
+    private final Runnable checkinRefreshRunnable = this::runScheduledCheckinRefresh;
 
     private final CheckoutAssetAdapter checkoutAdapter = new CheckoutAssetAdapter(this::removeCheckoutItem);
     private final CheckInResultAdapter checkinAdapter = new CheckInResultAdapter();
+    private CheckoutUiRenderer uiRenderer;
 
     private final ActivityResultLauncher<String[]> importCheckoutLauncher =
             registerForActivityResult(new ActivityResultContracts.OpenDocument(), this::onCheckoutCsvSelected);
@@ -83,6 +96,11 @@ public class CheckoutActivity extends AppCompatActivity implements ScannerTrigge
 
     private SessionRepository sessionRepository;
     private ScreenTab activeTab = ScreenTab.CHECKOUT;
+    private AssetRepository.CacheSnapshot cacheSnapshot;
+    private PerfLogger.Trace screenOpenTrace;
+    private boolean initialCacheResolved;
+    private boolean checkoutRefreshScheduled;
+    private boolean checkinRefreshScheduled;
 
     private TabLayout tabsCheckoutMode;
     private NestedScrollView scrollCheckoutTab;
@@ -135,6 +153,8 @@ public class CheckoutActivity extends AppCompatActivity implements ScannerTrigge
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         AppRuntimeContext.init(getApplicationContext());
+        screenOpenTrace = PerfLogger.start(SCREEN, FLOW_SCREEN_OPEN, "onCreate", "activity=CheckoutActivity");
+        screenOpenTrace.markStart(logRepository);
         setContentView(R.layout.activity_ido_checkout);
 
         sessionRepository = new SessionRepository(getApplicationContext());
@@ -145,6 +165,30 @@ public class CheckoutActivity extends AppCompatActivity implements ScannerTrigge
         toolbar.setNavigationOnClickListener(v -> finish());
 
         bindViews();
+        uiRenderer = new CheckoutUiRenderer(
+                checkoutAdapter,
+                checkinAdapter,
+                tvCheckoutCount,
+                tvCheckoutSummarySelected,
+                tvCheckoutSummaryCached,
+                tvCheckoutSummaryOutsideCache,
+                tvCheckinSummaryHeadline,
+                tvCheckinSummaryDetail,
+                tvCheckinSummaryTotal,
+                tvCheckinSummaryReturned,
+                tvCheckinSummaryMissing,
+                progressCheckinSummary,
+                tvCheckoutScannerStatus,
+                tvCheckinScannerStatus,
+                btnCheckoutScan,
+                btnCheckoutStop,
+                btnCheckoutClear,
+                btnCheckoutExport,
+                btnCheckinScan,
+                btnCheckinStop,
+                btnCheckinClear,
+                btnCheckinExport
+        );
         setupLists();
         setupTabs();
         setupControls();
@@ -159,9 +203,18 @@ public class CheckoutActivity extends AppCompatActivity implements ScannerTrigge
         }
 
         applySessionDefaultsIfNeeded();
-        rebuildCachedAssetIndex();
         refreshAllViews();
         setActiveTab(activeTab);
+        loadCacheSnapshotAsync();
+        findViewById(android.R.id.content).post(() -> {
+            if (isFinishing() || isDestroyed()) {
+                return;
+            }
+            if (screenOpenTrace != null) {
+                screenOpenTrace.finish(logRepository, "first_render", "contentReady=true");
+                screenOpenTrace = null;
+            }
+        });
     }
 
     @Override
@@ -181,6 +234,8 @@ public class CheckoutActivity extends AppCompatActivity implements ScannerTrigge
     @Override
     protected void onDestroy() {
         checkoutScannerController.shutdown();
+        mainHandler.removeCallbacks(checkoutRefreshRunnable);
+        mainHandler.removeCallbacks(checkinRefreshRunnable);
         ioExecutor.shutdownNow();
         super.onDestroy();
     }
@@ -392,7 +447,7 @@ public class CheckoutActivity extends AppCompatActivity implements ScannerTrigge
         btnCheckinStop.setOnClickListener(v -> stopAllScanning());
         btnCheckinClear.setOnClickListener(v -> clearCheckinSession());
         btnCheckinExport.setOnClickListener(v -> exportCheckinCsv());
-        bindDepartmentDropdown();
+        bindDepartmentDropdown(new ArrayList<>());
     }
 
     private void restoreRetainedState(RetainedState retainedState) {
@@ -430,7 +485,7 @@ public class CheckoutActivity extends AppCompatActivity implements ScannerTrigge
         bindDateInput(etCheckoutExpectedReturn, false);
     }
 
-    private void bindDepartmentDropdown() {
+    private void bindDepartmentDropdown(List<String> runtimeDepartments) {
         List<String> options = new ArrayList<>();
         String[] defaults = getResources().getStringArray(R.array.known_department_options);
         for (String option : defaults) {
@@ -439,7 +494,6 @@ public class CheckoutActivity extends AppCompatActivity implements ScannerTrigge
                 options.add(normalized);
             }
         }
-        List<String> runtimeDepartments = assetRepository.collectDistinctValues("department");
         if (runtimeDepartments != null) {
             for (String department : runtimeDepartments) {
                 String normalized = AssetFieldNormalizer.normalizeDepartmentForDisplay(department);
@@ -508,10 +562,46 @@ public class CheckoutActivity extends AppCompatActivity implements ScannerTrigge
     }
 
     private void rebuildCachedAssetIndex() {
-        checkoutController.setCachedAssets(assetRepository.getCachedAssets());
+        List<Asset> assets = cacheSnapshot == null ? new ArrayList<>() : cacheSnapshot.getAssets();
+        checkoutController.setCachedAssets(assets);
+    }
+
+    private void loadCacheSnapshotAsync() {
+        PerfLogger.Trace trace = PerfLogger.start(SCREEN, FLOW_CACHE_LOAD, "load_requested", "source=runtime_cache");
+        trace.markStart(logRepository);
+        assetRepository.loadCacheSnapshotAsync(snapshot -> {
+            if (isFinishing() || isDestroyed()) {
+                return;
+            }
+            try {
+                cacheSnapshot = snapshot;
+                rebuildCachedAssetIndex();
+                initialCacheResolved = true;
+                bindDepartmentDropdown(snapshot == null ? new ArrayList<>() : snapshot.getDistinctValues("department"));
+                updateCheckoutDataStatus();
+                updateButtons();
+                trace.finish(
+                        logRepository,
+                        "load_completed",
+                        "assetCount=" + (snapshot == null ? 0 : snapshot.getAssetCount())
+                                + " | source=" + (snapshot == null ? "CACHE" : snapshot.getSource())
+                );
+            } catch (Exception exception) {
+                AppFailureReporter.report(
+                        logRepository,
+                        trace,
+                        SCREEN,
+                        FLOW_CACHE_LOAD,
+                        "load_failed",
+                        AppErrorCodes.UI_RENDER_FAILED,
+                        exception
+                );
+            }
+        });
     }
 
     private void refreshAllViews() {
+        cancelScheduledListRefreshes();
         refreshCheckoutList();
         refreshCheckinList();
         updateCheckoutDataStatus();
@@ -537,7 +627,7 @@ public class CheckoutActivity extends AppCompatActivity implements ScannerTrigge
     }
 
     private void updateCheckoutDataStatus() {
-        int cachedCount = assetRepository.getCachedAssets().size();
+        int cachedCount = cacheSnapshot == null ? 0 : cacheSnapshot.getAssetCount();
         if (cachedCount <= 0) {
             tvCheckoutDataStatus.setText(R.string.checkout_data_status_empty);
             return;
@@ -545,7 +635,7 @@ public class CheckoutActivity extends AppCompatActivity implements ScannerTrigge
         tvCheckoutDataStatus.setText(getString(
                 R.string.checkout_data_status_ready,
                 cachedCount,
-                valueOrDash(assetRepository.getLastSource())
+                valueOrDash(cacheSnapshot == null ? "" : cacheSnapshot.getSource())
         ));
     }
 
@@ -573,51 +663,43 @@ public class CheckoutActivity extends AppCompatActivity implements ScannerTrigge
 
     private void refreshCheckoutList() {
         List<CheckoutAssetItem> orderedItems = checkoutController.buildOrderedCheckoutItems();
-        checkoutAdapter.submitItems(orderedItems);
-        tvCheckoutCount.setText(getString(R.string.checkout_count_value, orderedItems.size()));
-
         CheckoutController.CheckoutSummary summary = checkoutController.buildCheckoutSummary();
-        tvCheckoutSummarySelected.setText(String.valueOf(summary.getSelectedCount()));
-        tvCheckoutSummaryCached.setText(String.valueOf(summary.getCachedCount()));
-        tvCheckoutSummaryOutsideCache.setText(String.valueOf(summary.getOutsideCacheCount()));
+        uiRenderer.renderCheckoutList(
+                orderedItems,
+                summary,
+                getString(R.string.checkout_count_value, orderedItems.size())
+        );
     }
 
     private void refreshCheckinList() {
         List<CheckInResultItem> orderedItems = checkoutController.buildOrderedCheckinItems();
-        checkinAdapter.submitItems(orderedItems);
-
         CheckoutController.CheckinSummary summary = checkoutController.buildCheckinSummary();
-        tvCheckinSummaryTotal.setText(String.valueOf(summary.getTotalCount()));
-        tvCheckinSummaryReturned.setText(String.valueOf(summary.getReturnedCount()));
-        tvCheckinSummaryMissing.setText(String.valueOf(summary.getMissingCount()));
-        updateCheckinSummary(summary);
-    }
-
-    private void updateCheckinSummary(CheckoutController.CheckinSummary summary) {
         if (summary == null || summary.getTotalCount() <= 0) {
-            tvCheckinSummaryHeadline.setText(getString(R.string.checkin_summary_headline, 0, 0));
-            tvCheckinSummaryDetail.setText(R.string.checkin_summary_detail_empty);
-            progressCheckinSummary.setProgressCompat(0, false);
+            uiRenderer.renderCheckinList(
+                    orderedItems,
+                    summary,
+                    getString(R.string.checkin_summary_headline, 0, 0),
+                    getString(R.string.checkin_summary_detail_empty),
+                    0
+            );
             return;
         }
 
         int completionPercent = Math.min(100, Math.max(0, Math.round((summary.getReturnedCount() * 100f) / summary.getTotalCount())));
-        tvCheckinSummaryHeadline.setText(getString(
-                R.string.checkin_summary_headline,
-                summary.getReturnedCount(),
-                summary.getTotalCount()
-        ));
-        tvCheckinSummaryDetail.setText(getString(
-                R.string.checkin_summary_detail,
-                completionPercent,
-                summary.getMissingCount()
-        ));
-        progressCheckinSummary.setProgressCompat(completionPercent, false);
+        uiRenderer.renderCheckinList(
+                orderedItems,
+                summary,
+                getString(R.string.checkin_summary_headline, summary.getReturnedCount(), summary.getTotalCount()),
+                getString(R.string.checkin_summary_detail, completionPercent, summary.getMissingCount()),
+                completionPercent
+        );
     }
 
     private void updateScannerStatuses() {
-        tvCheckoutScannerStatus.setText(buildScannerStatusText(ScreenTab.CHECKOUT, rbCheckoutQr.isChecked(), swCheckoutContinuousScan.isChecked()));
-        tvCheckinScannerStatus.setText(buildScannerStatusText(ScreenTab.CHECKIN, rbCheckinQr.isChecked(), swCheckinContinuousScan.isChecked()));
+        uiRenderer.renderScannerStatuses(
+                buildScannerStatusText(ScreenTab.CHECKOUT, rbCheckoutQr.isChecked(), swCheckoutContinuousScan.isChecked()),
+                buildScannerStatusText(ScreenTab.CHECKIN, rbCheckinQr.isChecked(), swCheckinContinuousScan.isChecked())
+        );
     }
 
     private String buildScannerStatusText(ScreenTab tab, boolean qrSelected, boolean continuousEnabled) {
@@ -645,19 +727,21 @@ public class CheckoutActivity extends AppCompatActivity implements ScannerTrigge
     }
 
     private void updateButtons() {
-        btnCheckoutScan.setEnabled(!checkoutScannerController.isScannerPreparing());
-        btnCheckoutStop.setEnabled(!checkoutScannerController.isScannerPreparing()
-                && (checkoutScannerController.isQrScanning() || checkoutScannerController.isReaderInventoryRunning()));
-        btnCheckoutClear.setEnabled(!checkoutController.getState().getCheckoutItems().isEmpty());
-        btnCheckoutExport.setEnabled(!checkoutController.getState().getCheckoutItems().isEmpty());
-
+        boolean checkoutItemsAvailable = !checkoutController.getState().getCheckoutItems().isEmpty();
         boolean hasImportedTicket = checkoutController.hasImportedCheckoutData();
         boolean hasCheckinData = hasImportedTicket && !checkoutController.getState().getExpectedCheckinItems().isEmpty();
-        btnCheckinScan.setEnabled(hasImportedTicket && !checkoutScannerController.isScannerPreparing());
-        btnCheckinStop.setEnabled(hasImportedTicket && !checkoutScannerController.isScannerPreparing()
-                && (checkoutScannerController.isQrScanning() || checkoutScannerController.isReaderInventoryRunning()));
-        btnCheckinClear.setEnabled(hasImportedTicket);
-        btnCheckinExport.setEnabled(hasCheckinData);
+        boolean scannerRunning = checkoutScannerController.isQrScanning() || checkoutScannerController.isReaderInventoryRunning();
+        boolean scannerPreparing = checkoutScannerController.isScannerPreparing();
+        uiRenderer.renderButtons(new CheckoutUiRenderer.ButtonsState(
+                !scannerPreparing,
+                !scannerPreparing && scannerRunning,
+                checkoutItemsAvailable,
+                checkoutItemsAvailable,
+                hasImportedTicket && !scannerPreparing,
+                hasImportedTicket && !scannerPreparing && scannerRunning,
+                hasImportedTicket,
+                hasCheckinData
+        ));
     }
 
     private boolean isCurrentModeQr() {
@@ -730,6 +814,7 @@ public class CheckoutActivity extends AppCompatActivity implements ScannerTrigge
     }
 
     private void clearCheckoutItems() {
+        cancelScheduledListRefreshes();
         checkoutController.clearCheckoutItems();
         refreshCheckoutList();
         updateButtons();
@@ -739,6 +824,7 @@ public class CheckoutActivity extends AppCompatActivity implements ScannerTrigge
         if (!checkoutController.removeCheckoutItem(item)) {
             return;
         }
+        cancelScheduledListRefreshes();
         refreshCheckoutList();
         updateButtons();
         showToast(getString(R.string.checkout_removed_item));
@@ -749,6 +835,7 @@ public class CheckoutActivity extends AppCompatActivity implements ScannerTrigge
             showToast(getString(R.string.checkin_need_import_first));
             return;
         }
+        cancelScheduledListRefreshes();
         checkoutController.clearCheckinSession();
         refreshAllViews();
         showToast(getString(R.string.checkin_reset_done));
@@ -945,6 +1032,9 @@ public class CheckoutActivity extends AppCompatActivity implements ScannerTrigge
         if (checkoutScannerController.isScannerPreparing()) {
             return;
         }
+        if (!ensureCheckoutCacheReadyForScan()) {
+            return;
+        }
         logRepository.logInfo("START_SCAN", "Bat dau scan Check Out", describeScannerMode(ScreenTab.CHECKOUT));
         if (rbCheckoutQr.isChecked()) {
             checkoutScannerController.handleTriggerDown(this, ScreenTab.CHECKOUT, true, false);
@@ -1030,7 +1120,7 @@ public class CheckoutActivity extends AppCompatActivity implements ScannerTrigge
                         rfid ? R.string.checkout_scanner_rfid_done : R.string.checkout_scanner_qr_done,
                         displayValue
                 ));
-                refreshCheckoutList();
+                scheduleCheckoutListRefresh();
                 updateButtons();
                 if (!suppressDuplicateToast) {
                     showToast(getString(R.string.checkout_added_item));
@@ -1068,7 +1158,7 @@ public class CheckoutActivity extends AppCompatActivity implements ScannerTrigge
                         rfid ? R.string.checkout_scanner_rfid_done : R.string.checkout_scanner_qr_done,
                         displayValue
                 ));
-                refreshCheckinList();
+                scheduleCheckinListRefresh();
                 updateButtons();
                 if (!suppressDuplicateToast) {
                     showToast(getString(R.string.checkin_marked_returned));
@@ -1105,6 +1195,54 @@ public class CheckoutActivity extends AppCompatActivity implements ScannerTrigge
 
     private void showToast(String message) {
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+    }
+
+    private void scheduleCheckoutListRefresh() {
+        if (checkoutRefreshScheduled) {
+            return;
+        }
+        checkoutRefreshScheduled = true;
+        mainHandler.postDelayed(checkoutRefreshRunnable, SCAN_REFRESH_DEBOUNCE_MS);
+    }
+
+    private void scheduleCheckinListRefresh() {
+        if (checkinRefreshScheduled) {
+            return;
+        }
+        checkinRefreshScheduled = true;
+        mainHandler.postDelayed(checkinRefreshRunnable, SCAN_REFRESH_DEBOUNCE_MS);
+    }
+
+    private void cancelScheduledListRefreshes() {
+        checkoutRefreshScheduled = false;
+        checkinRefreshScheduled = false;
+        mainHandler.removeCallbacks(checkoutRefreshRunnable);
+        mainHandler.removeCallbacks(checkinRefreshRunnable);
+    }
+
+    private void runScheduledCheckoutRefresh() {
+        checkoutRefreshScheduled = false;
+        refreshCheckoutList();
+    }
+
+    private void runScheduledCheckinRefresh() {
+        checkinRefreshScheduled = false;
+        refreshCheckinList();
+    }
+
+    private boolean ensureCheckoutCacheReadyForScan() {
+        if (initialCacheResolved) {
+            return true;
+        }
+        DebugEventLogger.info(
+                logRepository,
+                SCREEN,
+                FLOW_CACHE_LOAD,
+                "cache_not_ready",
+                "flow=checkout_scan"
+        );
+        showToast("Cache tai san dang khoi tao. Vui long thu lai sau.");
+        return false;
     }
 
     private String describeTab(ScreenTab tab) {

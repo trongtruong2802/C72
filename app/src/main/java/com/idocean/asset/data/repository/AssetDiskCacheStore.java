@@ -4,6 +4,8 @@ import android.content.Context;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.idocean.asset.diagnostics.AppErrorCodes;
+import com.idocean.asset.diagnostics.DebugEventLogger;
 import com.idocean.asset.model.Asset;
 
 import java.io.BufferedReader;
@@ -23,6 +25,8 @@ import java.util.List;
  */
 final class AssetDiskCacheStore {
     private static final String FILE_NAME = "ido_asset_runtime_cache.json";
+    private static final String SCREEN = "Cache";
+    private static final String FLOW_CACHE_IO = "cache_io";
 
     private final Gson gson = new GsonBuilder().serializeNulls().create();
 
@@ -41,6 +45,13 @@ final class AssetDiskCacheStore {
             }
             return deserialize(rawJson.toString());
         } catch (RuntimeException runtimeException) {
+            DebugEventLogger.error(
+                    SCREEN,
+                    FLOW_CACHE_IO,
+                    "cache_parse_failed",
+                    AppErrorCodes.CACHE_PARSE_FAILED,
+                    runtimeException.getMessage()
+            );
             throw new IOException("Khong doc duoc file cache tai san noi bo.", runtimeException);
         }
     }
@@ -77,6 +88,13 @@ final class AssetDiskCacheStore {
         try {
             snapshotDto = gson.fromJson(rawJson, SnapshotDto.class);
         } catch (RuntimeException runtimeException) {
+            DebugEventLogger.error(
+                    SCREEN,
+                    FLOW_CACHE_IO,
+                    "cache_parse_failed",
+                    AppErrorCodes.CACHE_PARSE_FAILED,
+                    runtimeException.getMessage()
+            );
             throw new IOException("Khong doc duoc file cache tai san noi bo.", runtimeException);
         }
         if (snapshotDto == null || snapshotDto.assets == null || snapshotDto.assets.isEmpty()) {
