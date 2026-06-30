@@ -20,6 +20,7 @@ final class LookupUiRenderer {
     private final Button btnLookupCancel;
     private final Button btnLookupSave;
     private final Button btnLookupHandover;
+    private final Button btnLookupManualAdd;
     private final EditText etLookupCode;
     private final EditText etLookupTid;
     private final EditText etLookupOldCode;
@@ -38,6 +39,7 @@ final class LookupUiRenderer {
                      TextView tvLookupScannerStatus,
                      Button btnLookupScan,
                      Button btnLookupStop,
+                     Button btnLookupManualAdd,
                      Button btnLookupEdit,
                      Button btnLookupCancel,
                      Button btnLookupSave,
@@ -59,6 +61,7 @@ final class LookupUiRenderer {
         this.tvLookupScannerStatus = tvLookupScannerStatus;
         this.btnLookupScan = btnLookupScan;
         this.btnLookupStop = btnLookupStop;
+        this.btnLookupManualAdd = btnLookupManualAdd;
         this.btnLookupEdit = btnLookupEdit;
         this.btnLookupCancel = btnLookupCancel;
         this.btnLookupSave = btnLookupSave;
@@ -117,8 +120,12 @@ final class LookupUiRenderer {
     }
 
     void renderEditMode(boolean enabled) {
+        renderEditMode(enabled, false);
+    }
+
+    void renderEditMode(boolean enabled, boolean isTidEditable) {
         etLookupCode.setEnabled(enabled);
-        etLookupTid.setEnabled(false);
+        etLookupTid.setEnabled(enabled && isTidEditable);
         if (editableFields != null) {
             for (EditText field : editableFields) {
                 if (field != null) {
@@ -141,6 +148,9 @@ final class LookupUiRenderer {
                        boolean qrScanning) {
         btnLookupScan.setEnabled(!scannerPreparing && !saving);
         btnLookupStop.setEnabled(!scannerPreparing && qrScanning);
+        if (btnLookupManualAdd != null) {
+            btnLookupManualAdd.setEnabled(!scannerPreparing && !editing && !saving);
+        }
         btnLookupEdit.setEnabled(hasAsset && !editing && !saving);
         btnLookupEdit.setVisibility(editing ? Button.GONE : Button.VISIBLE);
         btnLookupCancel.setVisibility(editing ? Button.VISIBLE : Button.GONE);

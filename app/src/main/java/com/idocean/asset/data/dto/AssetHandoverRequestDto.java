@@ -66,7 +66,6 @@ public final class AssetHandoverRequestDto {
 
     public boolean hasRequiredFields() {
         return hasValue("code")
-                && hasValue("tid")
                 && hasValue("newUser")
                 && hasValue("newDepartment")
                 && hasValue("newLocation")

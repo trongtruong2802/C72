@@ -133,6 +133,8 @@ final class AssetCacheStore {
                 return;
             }
         }
+        // Thêm tài sản mới vào cache nếu không tìm thấy để cập nhật
+        inMemoryCache.add(updatedAsset);
     }
 
     synchronized void ensureDiskCacheLoaded() {

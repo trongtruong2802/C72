@@ -252,6 +252,15 @@ public class InventoryActivity extends AppCompatActivity implements ScannerTrigg
     private void setupRecyclerView() {
         rvInventoryResults.setLayoutManager(new LinearLayoutManager(this));
         rvInventoryResults.setAdapter(adapter);
+        adapter.setOnItemClickListener(item -> {
+            if (item == null) {
+                return;
+            }
+            Intent intent = new Intent(InventoryActivity.this, com.idocean.asset.ui.lookup.LookupActivity.class);
+            intent.putExtra(com.idocean.asset.ui.lookup.LookupActivity.EXTRA_ASSET_CODE, item.displayCode);
+            intent.putExtra(com.idocean.asset.ui.lookup.LookupActivity.EXTRA_ASSET_TID, item.displayTid);
+            startActivity(intent);
+        });
     }
 
     private void setupControls() {

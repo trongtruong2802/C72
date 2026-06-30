@@ -132,4 +132,54 @@ public class AssetHandoverRequestDtoTest {
 
         assertFalse(requestDto.hasRequiredFields());
     }
+
+    @Test
+    public void hasRequiredFields_returnsTrueWhenTidIsMissingButOthersPresent() {
+        Asset originalAsset = new Asset(
+                12,
+                "AREXAT",
+                "",
+                "",
+                "",
+                "Laptop Dell",
+                "LAPTOP",
+                "SN-01",
+                "HR",
+                "Thang Nguyen",
+                "Idoplex-5",
+                "Dang su dung",
+                "",
+                "",
+                "",
+                "",
+                "API"
+        );
+        Asset updatedAsset = new Asset(
+                12,
+                "AREXAT",
+                "",
+                "",
+                "",
+                "Laptop Dell",
+                "LAPTOP",
+                "SN-01",
+                "IT",
+                "Truong Vu",
+                "L\u1ea7u 5 - TT16",
+                "Dang su dung",
+                "",
+                "",
+                "",
+                "",
+                "API"
+        );
+
+        AssetHandoverRequestDto requestDto = AssetHandoverRequestDto.fromAssets(
+                originalAsset,
+                updatedAsset,
+                "2026-04-08"
+        );
+
+        assertTrue(requestDto.hasRequiredFields());
+    }
 }

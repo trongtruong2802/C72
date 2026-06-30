@@ -5,6 +5,7 @@ package com.idocean.asset.ui.lookup;
  */
 public final class EditableAssetDraft {
     public final String code;
+    public final String tid;
     public final String oldCode;
     public final String oldSerial;
     public final String assetName;
@@ -18,6 +19,7 @@ public final class EditableAssetDraft {
 
     public EditableAssetDraft(
             String code,
+            String tid,
             String oldCode,
             String oldSerial,
             String assetName,
@@ -30,6 +32,7 @@ public final class EditableAssetDraft {
             String note
     ) {
         this.code = code;
+        this.tid = tid;
         this.oldCode = oldCode;
         this.oldSerial = oldSerial;
         this.assetName = assetName;

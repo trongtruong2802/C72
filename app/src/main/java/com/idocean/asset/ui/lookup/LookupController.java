@@ -58,6 +58,7 @@ public final class LookupController {
     public static final class ValidationResult {
         public enum Field {
             NONE,
+            ASSET_CODE,
             ASSET_NAME,
             HANDOVER_USER,
             HANDOVER_DATE
@@ -135,11 +136,35 @@ public final class LookupController {
         }
         Asset asset = findAsset(assetCode, assetTid);
         if (asset == null) {
-            state.reset();
-            ui.renderAsset(null);
-            ui.showStatus(ui.lookupStatusNotFound());
-            ui.renderEditMode(false);
+            if (logRepository != null) {
+                logRepository.logInfo("INTENT", "Khong tim thay tai san trong cache khi mo tu Intent. Khoi tao tai san moi.", "code=" + assetCode + ", tid=" + assetTid);
+            }
+            Asset newAsset = new Asset(
+                    null,
+                    valueOrEmpty(assetCode),
+                    valueOrEmpty(assetTid),
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    todayDateString(),
+                    "",
+                    "",
+                    "NEW"
+            );
+            state.setCurrentAsset(newAsset);
+            state.setEditing(true);
+            state.setSaving(false);
+            ui.renderAsset(newAsset);
+            ui.renderEditMode(true);
             ui.renderSaving(false);
+            ui.showStatus("Tài sản chưa có trong hệ thống. Hãy nhập thông tin để thêm.");
             return;
         }
         publishAsset(ui, asset, ui.lookupOpenedFromList(), false);
@@ -148,18 +173,75 @@ public final class LookupController {
     public void handleLookupResult(String tid, String code, String matchedBy, String rawValue, LookupUi ui) {
         Asset asset = findAsset(code, tid);
         if (asset == null) {
-            logRepository.logInfo("SCAN_" + matchedBy, "Khong tim thay tai san trong cache", valueOrDash(rawValue));
-            state.reset();
-            ui.renderAsset(null);
-            ui.showStatus(ui.lookupStatusNotFound());
-            ui.showToast(ui.lookupStatusNotFound());
-            ui.renderEditMode(false);
+            if (logRepository != null) {
+                logRepository.logInfo("SCAN_" + matchedBy, "Khong tim thay tai san trong cache. Khoi tao tai san moi.", valueOrDash(rawValue));
+            }
+            Asset newAsset = new Asset(
+                    null,
+                    valueOrEmpty(code),
+                    valueOrEmpty(tid),
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    todayDateString(),
+                    "",
+                    "",
+                    "NEW"
+            );
+            state.setCurrentAsset(newAsset);
+            state.setEditing(true);
+            state.setSaving(false);
+            ui.renderAsset(newAsset);
+            ui.renderEditMode(true);
             ui.renderSaving(false);
+            ui.showStatus("Tài sản chưa có trong hệ thống. Hãy nhập thông tin để thêm.");
+            ui.showToast("Phát hiện tài sản mới! Đã hiển thị mã quét và TID.");
             return;
         }
 
-        logRepository.logInfo("SCAN_" + matchedBy, "Da tim thay tai san", asset.getAssetCode());
+        if (logRepository != null) {
+            logRepository.logInfo("SCAN_" + matchedBy, "Da tim thay tai san", asset.getAssetCode());
+        }
         publishAsset(ui, asset, ui.lookupStatusFound(valueOrDash(asset.getAssetName())), false);
+    }
+
+    public void startManualAdd(LookupUi ui) {
+        if (logRepository != null) {
+            logRepository.logInfo("MANUAL_ADD", "Nguoi dung bat dau dang ky thu cong", "");
+        }
+        Asset newAsset = new Asset(
+                null,
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                todayDateString(),
+                "",
+                "",
+                "NEW"
+        );
+        state.setCurrentAsset(newAsset);
+        state.setEditing(true);
+        state.setSaving(false);
+        ui.renderAsset(newAsset);
+        ui.renderEditMode(true);
+        ui.renderSaving(false);
+        ui.showStatus("Nhập thông tin tài sản mới.");
     }
 
     public void startEdit(LookupUi ui) {
@@ -181,6 +263,15 @@ public final class LookupController {
             ui.renderSaving(false);
             return;
         }
+        Asset currentAsset = state.getCurrentAsset();
+        if (currentAsset.getRowNumber() == null) {
+            state.reset();
+            ui.renderAsset(null);
+            ui.showStatus("Đã hủy đăng ký.");
+            ui.renderEditMode(false);
+            ui.renderSaving(false);
+            return;
+        }
         state.setEditing(false);
         state.setSaving(false);
         ui.renderAsset(state.getCurrentAsset());
@@ -191,6 +282,9 @@ public final class LookupController {
     }
 
     public ValidationResult validateEditableDraft(EditableAssetDraft draft, LookupUi ui) {
+        if (draft == null || valueOrEmpty(draft.code).trim().isEmpty()) {
+            return ValidationResult.error(ValidationResult.Field.ASSET_CODE, "Mã tài sản (Code) là bắt buộc");
+        }
         if (draft == null || valueOrEmpty(draft.assetName).isEmpty()) {
             return ValidationResult.error(ValidationResult.Field.ASSET_NAME, ui.lookupNeedAssetName());
         }
@@ -221,10 +315,11 @@ public final class LookupController {
         }
 
         Asset currentAsset = state.getCurrentAsset();
+        String finalTid = valueOrEmpty(currentAsset.getTid()).trim().isEmpty() ? valueOrEmpty(draft.tid) : currentAsset.getTid();
         Asset updatedAsset = new Asset(
                 currentAsset.getRowNumber(),
                 valueOrEmpty(draft.code),
-                currentAsset.getTid(),
+                finalTid,
                 valueOrEmpty(draft.oldCode),
                 valueOrEmpty(draft.oldSerial),
                 valueOrEmpty(draft.assetName),

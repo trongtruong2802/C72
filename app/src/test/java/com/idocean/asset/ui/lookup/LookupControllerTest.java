@@ -16,7 +16,8 @@ public class LookupControllerTest {
     public void validateEditableDraft_requiresAssetName() {
         LookupController.ValidationResult result = controller.validateEditableDraft(
                 new EditableAssetDraft(
-                        "",
+                        "VALID-CODE",
+                        "", // tid
                         "OLD",
                         "SER-OLD",
                         "",
@@ -34,6 +35,31 @@ public class LookupControllerTest {
         assertFalse(result.isValid());
         assertEquals(LookupController.ValidationResult.Field.ASSET_NAME, result.getField());
         assertEquals("Asset name is required", result.getMessage());
+    }
+
+    @Test
+    public void validateEditableDraft_requiresAssetCode() {
+        LookupController.ValidationResult result = controller.validateEditableDraft(
+                new EditableAssetDraft(
+                        "",
+                        "", // tid
+                        "OLD",
+                        "SER-OLD",
+                        "Laptop",
+                        "Laptop",
+                        "SER-NEW",
+                        "IT",
+                        "User A",
+                        "Lầu 5 - TT16",
+                        "Đang sử dụng",
+                        "note"
+                ),
+                ui
+        );
+
+        assertFalse(result.isValid());
+        assertEquals(LookupController.ValidationResult.Field.ASSET_CODE, result.getField());
+        assertEquals("Mã tài sản (Code) là bắt buộc", result.getMessage());
     }
 
     @Test
@@ -181,7 +207,112 @@ public class LookupControllerTest {
         assertTrue(summary.contains("E2801190200089A73CC203CA"));
     }
 
-    private static final class TestLookupUi implements LookupController.LookupUi {
+    @Test
+    public void handleLookupResult_whenNotFound_initializesNewAssetAndEntersEditMode() {
+        class MockLookupUi extends TestLookupUi {
+            Asset renderedAsset;
+            boolean editMode;
+            String status;
+            String toast;
+
+            @Override
+            public void renderAsset(Asset asset) {
+                this.renderedAsset = asset;
+            }
+
+            @Override
+            public void renderEditMode(boolean editing) {
+                this.editMode = editing;
+            }
+
+            @Override
+            public void showStatus(String message) {
+                this.status = message;
+            }
+
+            @Override
+            public void showToast(String message) {
+                this.toast = message;
+            }
+        }
+
+        MockLookupUi mockUi = new MockLookupUi();
+        controller.handleLookupResult("TID-NEW", "CODE-NEW", "RFID", "TID-NEW", mockUi);
+
+        assertTrue(controller.getState().isEditing());
+        assertEquals("CODE-NEW", mockUi.renderedAsset.getAssetCode());
+        assertEquals("TID-NEW", mockUi.renderedAsset.getTid());
+        assertTrue(mockUi.editMode);
+        assertEquals("Tài sản chưa có trong hệ thống. Hãy nhập thông tin để thêm.", mockUi.status);
+    }
+
+    @Test
+    public void openAssetFromIntent_whenNotFound_initializesNewAssetAndEntersEditMode() {
+        class MockLookupUi extends TestLookupUi {
+            Asset renderedAsset;
+            boolean editMode;
+            String status;
+
+            @Override
+            public void renderAsset(Asset asset) {
+                this.renderedAsset = asset;
+            }
+
+            @Override
+            public void renderEditMode(boolean editing) {
+                this.editMode = editing;
+            }
+
+            @Override
+            public void showStatus(String message) {
+                this.status = message;
+            }
+        }
+
+        MockLookupUi mockUi = new MockLookupUi();
+        controller.openAssetFromIntent("CODE-INTENT", "TID-INTENT", mockUi);
+
+        assertTrue(controller.getState().isEditing());
+        assertEquals("CODE-INTENT", mockUi.renderedAsset.getAssetCode());
+        assertEquals("TID-INTENT", mockUi.renderedAsset.getTid());
+        assertTrue(mockUi.editMode);
+        assertEquals("Tài sản chưa có trong hệ thống. Hãy nhập thông tin để thêm.", mockUi.status);
+    }
+
+    @Test
+    public void startManualAdd_initializesEmptyAssetAndEntersEditMode() {
+        class MockLookupUi extends TestLookupUi {
+            Asset renderedAsset;
+            boolean editMode;
+            String status;
+
+            @Override
+            public void renderAsset(Asset asset) {
+                this.renderedAsset = asset;
+            }
+
+            @Override
+            public void renderEditMode(boolean editing) {
+                this.editMode = editing;
+            }
+
+            @Override
+            public void showStatus(String message) {
+                this.status = message;
+            }
+        }
+
+        MockLookupUi mockUi = new MockLookupUi();
+        controller.startManualAdd(mockUi);
+
+        assertTrue(controller.getState().isEditing());
+        assertEquals("", mockUi.renderedAsset.getAssetCode());
+        assertEquals("", mockUi.renderedAsset.getTid());
+        assertTrue(mockUi.editMode);
+        assertEquals("Nhập thông tin tài sản mới.", mockUi.status);
+    }
+
+    private static class TestLookupUi implements LookupController.LookupUi {
         @Override
         public void renderAsset(Asset asset) {
         }

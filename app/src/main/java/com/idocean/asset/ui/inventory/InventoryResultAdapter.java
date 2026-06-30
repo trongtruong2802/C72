@@ -19,6 +19,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class InventoryResultAdapter extends ListAdapter<InventoryResultAdapter.InventoryRow, InventoryResultAdapter.InventoryViewHolder> {
+    public interface OnItemClickListener {
+        void onItemClick(InventoryRow item);
+    }
+
+    private OnItemClickListener onItemClickListener;
+
+    public void setOnItemClickListener(OnItemClickListener listener) {
+        this.onItemClickListener = listener;
+    }
 
     private static final DiffUtil.ItemCallback<InventoryRow> DIFF_CALLBACK =
             new DiffUtil.ItemCallback<InventoryRow>() {
@@ -95,6 +104,12 @@ public class InventoryResultAdapter extends ListAdapter<InventoryResultAdapter.I
         DisplayBadge badge = resolveBadge(context, item.status);
         holder.tvItemBadge.setText(badge.label);
         holder.tvItemBadge.setBackgroundResource(badge.backgroundRes);
+
+        holder.itemView.setOnClickListener(v -> {
+            if (onItemClickListener != null) {
+                onItemClickListener.onItemClick(item);
+            }
+        });
     }
 
     private DisplayBadge resolveBadge(Context context, InventoryItemStatus status) {

@@ -74,6 +74,7 @@ public class LookupActivity extends AppCompatActivity implements ScannerTriggerH
     private Button btnLookupCancel;
     private Button btnLookupSave;
     private Button btnLookupHandover;
+    private Button btnLookupManualAdd;
 
     private EditText etLookupCode;
     private EditText etLookupTid;
@@ -115,6 +116,7 @@ public class LookupActivity extends AppCompatActivity implements ScannerTriggerH
                 tvLookupScannerStatus,
                 btnLookupScan,
                 btnLookupStop,
+                btnLookupManualAdd,
                 btnLookupEdit,
                 btnLookupCancel,
                 btnLookupSave,
@@ -238,6 +240,7 @@ public class LookupActivity extends AppCompatActivity implements ScannerTriggerH
         btnLookupCancel = findViewById(R.id.btnLookupCancel);
         btnLookupSave = findViewById(R.id.btnLookupSave);
         btnLookupHandover = findViewById(R.id.btnLookupHandover);
+        btnLookupManualAdd = findViewById(R.id.btnLookupManualAdd);
 
         etLookupCode = findViewById(R.id.etLookupCode);
         etLookupTid = findViewById(R.id.etLookupTid);
@@ -273,6 +276,7 @@ public class LookupActivity extends AppCompatActivity implements ScannerTriggerH
         });
         btnLookupScan.setOnClickListener(v -> startLookupScan());
         btnLookupStop.setOnClickListener(v -> stopQrScan(true));
+        btnLookupManualAdd.setOnClickListener(v -> startManualAdd());
         btnLookupEdit.setOnClickListener(v -> startEditMode());
         btnLookupCancel.setOnClickListener(v -> cancelEditMode());
         btnLookupSave.setOnClickListener(v -> saveAssetChanges());
@@ -465,6 +469,13 @@ public class LookupActivity extends AppCompatActivity implements ScannerTriggerH
         lookupController.startEdit(this);
     }
 
+    private void startManualAdd() {
+        if (lookupController != null) {
+            lookupController.startManualAdd(this);
+            updateButtons();
+        }
+    }
+
     private void cancelEditMode() {
         lookupController.cancelEdit(this);
     }
@@ -477,6 +488,7 @@ public class LookupActivity extends AppCompatActivity implements ScannerTriggerH
         clearEditableFieldErrors();
         EditableAssetDraft draft = new EditableAssetDraft(
                 textOf(etLookupCode),
+                textOf(etLookupTid),
                 textOf(etLookupOldCode),
                 textOf(etLookupOldSerial),
                 textOf(etLookupName),
@@ -490,7 +502,9 @@ public class LookupActivity extends AppCompatActivity implements ScannerTriggerH
         );
         LookupController.ValidationResult validation = lookupController.validateEditableDraft(draft, this);
         if (!validation.isValid()) {
-            if (validation.getField() == LookupController.ValidationResult.Field.ASSET_NAME) {
+            if (validation.getField() == LookupController.ValidationResult.Field.ASSET_CODE) {
+                setFieldError(etLookupCode, validation.getMessage());
+            } else if (validation.getField() == LookupController.ValidationResult.Field.ASSET_NAME) {
                 setFieldError(etLookupName, validation.getMessage());
             }
             showToast(validation.getMessage());
@@ -960,7 +974,14 @@ public class LookupActivity extends AppCompatActivity implements ScannerTriggerH
 
     @Override
     public void renderEditMode(boolean editing) {
-        uiRenderer.renderEditMode(editing);
+        boolean isTidEditable = false;
+        if (lookupController != null && lookupController.getState() != null) {
+            Asset current = lookupController.getState().getCurrentAsset();
+            isTidEditable = current != null
+                    && current.getRowNumber() == null
+                    && (current.getTid() == null || current.getTid().isEmpty());
+        }
+        uiRenderer.renderEditMode(editing, isTidEditable);
         updateButtons();
     }
 
