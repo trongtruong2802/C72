@@ -329,7 +329,7 @@ public final class LookupController {
                 valueOrEmpty(draft.assignedUser),
                 valueOrEmpty(draft.location),
                 AssetFieldNormalizer.normalizeInventoryStatusForDisplay(draft.inventoryStatus),
-                AssetFieldNormalizer.normalizeConditionForDisplay(currentAsset.getAssetCondition()),
+                AssetFieldNormalizer.normalizeConditionForDisplay(draft.inventoryStatus),
                 valueOrEmpty(currentAsset.getTagDate()),
                 valueOrEmpty(currentAsset.getTagBy()),
                 valueOrEmpty(draft.note),

@@ -49,7 +49,7 @@ public final class AssetMapper {
             "location", "location_name", "room", "area", "vi_tri", "vi_tri_dia_diem"
     };
     private static final String[] INVENTORY_STATUS_KEYS = {
-            "inventory_status", "status", "check_status", "trang_thai_kiem_ke", "inventorystatus"
+            "inventory_status", "status", "check_status", "trang_thai_kiem_ke", "trang_thai_su_dung", "trang_thai", "usage_status", "inventorystatus"
     };
     private static final String[] CONDITION_KEYS = {
             "condition", "asset_condition", "tinh_trang"

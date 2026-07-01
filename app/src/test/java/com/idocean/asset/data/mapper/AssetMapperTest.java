@@ -45,4 +45,17 @@ public class AssetMapperTest {
         assertEquals("E2801190200093F73CC803CA", asset.getTid());
         assertTrue(AssetMapper.hasMeaningfulData(asset));
     }
+
+    @Test
+    public void fromApiJson_mapsInventoryStatusAliases() {
+        JsonObject object = JsonParser.parseString("{" +
+                "\"Code\":\"TEST_CODE\"," +
+                "\"Trạng thái sử dụng\":\"Đang sử dụng\"" +
+                "}").getAsJsonObject();
+
+        Asset asset = AssetMapper.fromApiJson(object, 1);
+
+        assertEquals("TEST_CODE", asset.getAssetCode());
+        assertEquals("Đang sử dụng", asset.getInventoryStatus());
+    }
 }

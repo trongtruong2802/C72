@@ -98,9 +98,13 @@ public class AssetListAdapter extends ListAdapter<Asset, AssetListAdapter.ViewHo
                 context.getString(R.string.inventory_field_location) + ": " + valueOrDash(asset.getLocation())
         );
 
-        String status = valueOrDash(asset.getInventoryStatus());
-        holder.tvStatus.setText(status);
-        holder.tvStatus.setBackgroundResource(resolveStatusBackground(status));
+        String status = asset.getInventoryStatus();
+        if (status == null || status.trim().isEmpty()) {
+            status = asset.getAssetCondition();
+        }
+        String displayStatus = valueOrDash(status);
+        holder.tvStatus.setText(displayStatus);
+        holder.tvStatus.setBackgroundResource(resolveStatusBackground(displayStatus));
 
         holder.itemView.setOnClickListener(v -> {
             if (assetClickListener != null) {

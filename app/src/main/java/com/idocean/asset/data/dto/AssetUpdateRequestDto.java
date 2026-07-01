@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Locale;
 
 public final class AssetUpdateRequestDto {
+    private static final String FIELD_TID = "tid";
     private static final String FIELD_CODE = "code";
     private static final String FIELD_OLD_CODE = "oldCode";
     private static final String FIELD_OLD_SERIAL = "oldSerial";
@@ -59,6 +60,9 @@ public final class AssetUpdateRequestDto {
         appendIdentifiers(payload, safeOriginalAsset, safeUpdatedAsset);
         appendWebhookCompatFields(payload, safeUpdatedAsset);
 
+        addChangedField(payload, changedFields, updatedFields, clearedFields, FIELD_TID,
+                safeOriginalAsset.getTid(), safeUpdatedAsset.getTid(),
+                "tid", "tag_id");
         addChangedField(payload, changedFields, updatedFields, clearedFields, FIELD_CODE,
                 safeOriginalAsset.getAssetCode(), safeUpdatedAsset.getAssetCode(),
                 "code", "asset_code", "new_code", "updated_code");
@@ -199,15 +203,16 @@ public final class AssetUpdateRequestDto {
             payload.addProperty("asset_code", updatedAssetCode);
         }
 
-        String tid = safe(originalAsset == null ? "" : originalAsset.getTid());
-        if (tid.isEmpty() && updatedAsset != null) {
-            tid = safe(updatedAsset.getTid());
+        String originalTid = safe(originalAsset == null ? "" : originalAsset.getTid());
+        if (!originalTid.isEmpty()) {
+            payload.addProperty("match_tid", originalTid);
+            payload.addProperty("original_tid", originalTid);
         }
-        if (!tid.isEmpty()) {
-            payload.addProperty("tid", tid);
-            payload.addProperty("tag_id", tid);
-            payload.addProperty("match_tid", tid);
-            payload.addProperty("original_tid", tid);
+
+        String updatedTid = safe(updatedAsset == null ? "" : updatedAsset.getTid());
+        if (!updatedTid.isEmpty()) {
+            payload.addProperty("tid", updatedTid);
+            payload.addProperty("tag_id", updatedTid);
         }
     }
 
@@ -274,6 +279,8 @@ public final class AssetUpdateRequestDto {
             return normalizedFieldValue(fieldName, "");
         }
         switch (fieldName) {
+            case FIELD_TID:
+                return normalizedFieldValue(fieldName, asset.getTid());
             case FIELD_CODE:
                 return normalizedFieldValue(fieldName, asset.getAssetCode());
             case FIELD_OLD_CODE:

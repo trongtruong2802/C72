@@ -288,4 +288,60 @@ public class AssetUpdateRequestDtoTest {
         assertEquals("AREXAT", payload.get("match_code").getAsString());
         assertEquals("AREXAT-NEW", payload.get("new_code").getAsString());
     }
+
+    @Test
+    public void fromAssets_whenNewAssetWithTid_excludesMatchTidAndIncludesTid() {
+        Asset originalAsset = new Asset(
+                null,
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "2026-07-01",
+                "",
+                "",
+                "NEW"
+        );
+        Asset updatedAsset = new Asset(
+                null,
+                "CODE123",
+                "TID123",
+                "",
+                "",
+                "Laptop Dell",
+                "LAPTOP",
+                "SN-01",
+                "IT",
+                "Thang Nguyen",
+                "Lầu 2 - TT16",
+                "Dang su dung",
+                "",
+                "",
+                "",
+                "",
+                "NEW"
+        );
+
+        AssetUpdateRequestDto requestDto = AssetUpdateRequestDto.fromAssets(originalAsset, updatedAsset);
+        JsonObject payload = requestDto.getPayload();
+
+        assertTrue(requestDto.hasChanges());
+        assertTrue(requestDto.getChangedFields().contains("tid"));
+
+        assertTrue(payload.has("tid"));
+        assertEquals("TID123", payload.get("tid").getAsString());
+        assertTrue(payload.has("tag_id"));
+        assertEquals("TID123", payload.get("tag_id").getAsString());
+
+        assertFalse(payload.has("match_tid"));
+        assertFalse(payload.has("original_tid"));
+    }
 }
