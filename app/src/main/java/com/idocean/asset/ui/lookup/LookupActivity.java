@@ -978,7 +978,6 @@ public class LookupActivity extends AppCompatActivity implements ScannerTriggerH
         if (lookupController != null && lookupController.getState() != null) {
             Asset current = lookupController.getState().getCurrentAsset();
             isTidEditable = current != null
-                    && current.getRowNumber() == null
                     && (current.getTid() == null || current.getTid().isEmpty());
         }
         uiRenderer.renderEditMode(editing, isTidEditable);
