@@ -632,21 +632,6 @@ public class LookupActivity extends AppCompatActivity implements ScannerTriggerH
         datePickerDialog.show();
     }
 
-    private String validateHandoverForm(EditText userField, EditText dateField) {
-        if (textOf(userField).isEmpty()) {
-            return setFieldError(userField, R.string.lookup_handover_need_user);
-        }
-
-        String handoverDate = textOf(dateField);
-        if (handoverDate.isEmpty()) {
-            return setFieldError(dateField, R.string.lookup_handover_need_date);
-        }
-        if (!isValidTagDate(handoverDate)) {
-            return setFieldError(dateField, R.string.lookup_handover_invalid_date);
-        }
-        return "";
-    }
-
     private void clearHandoverFieldErrors(EditText... fields) {
         if (fields == null) {
             return;
@@ -656,169 +641,6 @@ public class LookupActivity extends AppCompatActivity implements ScannerTriggerH
                 field.setError(null);
             }
         }
-    }
-
-    private boolean hasHandoverChanges(
-            Asset sourceAsset,
-            String newUser,
-            String newDepartment,
-            String newLocation,
-            String handoverDate
-    ) {
-        String currentUser = normalizeSearch(sourceAsset == null ? "" : sourceAsset.getAssignedUser());
-        String currentDepartment = normalizeSearch(AssetFieldNormalizer.normalizeDepartmentForDisplay(
-                sourceAsset == null ? "" : sourceAsset.getDepartment()
-        ));
-        String currentLocation = normalizeSearch(AssetLocationUtils.normalizeLocationForDisplay(
-                sourceAsset == null ? "" : sourceAsset.getLocation()
-        ));
-        String nextUser = normalizeSearch(newUser);
-        String nextDepartment = normalizeSearch(newDepartment);
-        String nextLocation = normalizeSearch(newLocation);
-        return !nextUser.equals(currentUser)
-                || !nextDepartment.equals(currentDepartment)
-                || !nextLocation.equals(currentLocation)
-                || !normalizeSearch(handoverDate).equals(normalizeSearch(todayDateString()));
-    }
-
-    private String normalizeDepartmentForHandover(Asset asset, String value) {
-        String normalized = AssetFieldNormalizer.normalizeDepartmentForDisplay(value);
-        if (!normalized.isEmpty()) {
-            return normalized;
-        }
-        return AssetFieldNormalizer.normalizeDepartmentForDisplay(asset == null ? "" : asset.getDepartment());
-    }
-
-    private String normalizeLocationForHandover(Asset asset, String value) {
-        String normalized = AssetLocationUtils.normalizeLocationForDisplay(value);
-        if (!normalized.isEmpty()) {
-            return normalized;
-        }
-        return AssetLocationUtils.normalizeLocationForDisplay(asset == null ? "" : asset.getLocation());
-    }
-
-    private String sanitizeNoteForMasterAsset(String note) {
-        String safeNote = valueOrEmpty(note);
-        if (safeNote.isEmpty()) {
-            return "";
-        }
-
-        String[] lines = safeNote.split("\\r?\\n");
-        StringBuilder builder = new StringBuilder();
-        for (String line : lines) {
-            String trimmed = line == null ? "" : line.trim();
-            if (trimmed.isEmpty()) {
-                continue;
-            }
-            if (looksLikeLegacyHandoverTrail(trimmed)) {
-                continue;
-            }
-            if (builder.length() > 0) {
-                builder.append('\n');
-            }
-            builder.append(trimmed);
-        }
-        return builder.toString().trim();
-    }
-
-    private boolean looksLikeLegacyHandoverTrail(String line) {
-        String normalized = valueOrEmpty(line);
-        if (normalized.isEmpty()) {
-            return false;
-        }
-        return (normalized.startsWith("[Bàn giao ") || normalized.startsWith("[BÃ n giao "))
-                && (normalized.contains("Người nhận") || normalized.contains("NgÆ°á»i nháº­n"));
-    }
-
-    private String mergeHandoverNote(Asset asset, String newUser, String newDepartment, String newLocation, String handoverDate, String handoverNote) {
-        StringBuilder builder = new StringBuilder();
-        String currentNote = asset == null ? "" : valueOrEmpty(asset.getNote());
-        String summary = buildHandoverTrail(asset, newUser, newDepartment, newLocation, handoverDate, handoverNote);
-        if (!currentNote.isEmpty()) {
-            builder.append(currentNote).append('\n');
-        }
-        builder.append(summary);
-        return builder.toString().trim();
-    }
-
-    private String buildHandoverTrail(Asset asset, String newUser, String newDepartment, String newLocation, String handoverDate, String handoverNote) {
-        String oldUser = valueOrDash(asset == null ? "" : asset.getAssignedUser());
-        String oldDepartment = valueOrDash(AssetFieldNormalizer.normalizeDepartmentForDisplay(asset == null ? "" : asset.getDepartment()));
-        String oldLocation = valueOrDash(AssetLocationUtils.normalizeLocationForDisplay(asset == null ? "" : asset.getLocation()));
-        StringBuilder builder = new StringBuilder();
-        builder.append("[Bàn giao ").append(valueOrDash(handoverDate)).append("] ");
-        builder.append("Người nhận: ").append(valueOrDash(newUser));
-        builder.append(" | Từ người dùng: ").append(oldUser);
-        builder.append(" | Phòng ban: ").append(oldDepartment).append(" -> ").append(valueOrDash(newDepartment));
-        builder.append(" | Vị trí: ").append(oldLocation).append(" -> ").append(valueOrDash(newLocation));
-        if (!handoverNote.trim().isEmpty()) {
-            builder.append(" | Ghi chú: ").append(handoverNote.trim());
-        }
-        return builder.toString();
-    }
-
-    private String buildHandoverCurrentSummary(Asset asset) {
-        if (asset == null) {
-            return "";
-        }
-        StringBuilder builder = new StringBuilder();
-        builder.append("Người dùng hiện tại: ").append(valueOrDash(asset.getAssignedUser())).append('\n');
-        builder.append("Phòng ban hiện tại: ")
-                .append(valueOrDash(AssetFieldNormalizer.normalizeDepartmentForDisplay(asset.getDepartment())))
-                .append('\n');
-        builder.append("Vị trí hiện tại: ")
-                .append(valueOrDash(AssetLocationUtils.normalizeLocationForDisplay(asset.getLocation())))
-                .append('\n');
-        builder.append("TID: ").append(valueOrDash(asset.getTid()));
-        return builder.toString();
-    }
-
-    private String buildHandoverSummary(Asset asset) {
-        if (asset == null) {
-            return "";
-        }
-        StringBuilder builder = new StringBuilder();
-        builder.append("Mã: ").append(valueOrDash(asset.getAssetCode())).append('\n');
-        builder.append("Tên: ").append(valueOrDash(asset.getAssetName())).append('\n');
-        builder.append("Người dùng hiện tại: ").append(valueOrDash(asset.getAssignedUser())).append('\n');
-        builder.append("Phòng ban hiện tại: ").append(valueOrDash(AssetFieldNormalizer.normalizeDepartmentForDisplay(asset.getDepartment()))).append('\n');
-        builder.append("Vị trí hiện tại: ").append(valueOrDash(AssetLocationUtils.normalizeLocationForDisplay(asset.getLocation())));
-        return builder.toString();
-    }
-
-    private String assetSummaryForLog(Asset asset) {
-        if (asset == null) {
-            return "-";
-        }
-        return valueOrDash(asset.getAssetCode())
-                + " | " + valueOrDash(asset.getAssignedUser())
-                + " | " + valueOrDash(AssetFieldNormalizer.normalizeDepartmentForDisplay(asset.getDepartment()))
-                + " | " + valueOrDash(AssetLocationUtils.normalizeLocationForDisplay(asset.getLocation()));
-    }
-
-    private long parseDateMillis(String value) {
-        if (value == null || value.trim().isEmpty()) {
-            return -1L;
-        }
-        try {
-            synchronized (tagDateFormat) {
-                tagDateFormat.setLenient(false);
-                Date parsed = tagDateFormat.parse(value.trim());
-                return parsed == null ? -1L : parsed.getTime();
-            }
-        } catch (ParseException ignored) {
-            return -1L;
-        }
-    }
-
-    private String formatDate(long millis) {
-        synchronized (tagDateFormat) {
-            return tagDateFormat.format(new Date(millis));
-        }
-    }
-
-    private String todayDateString() {
-        return formatDate(System.currentTimeMillis());
     }
 
     private void updateButtons() {
@@ -1091,17 +913,6 @@ public class LookupActivity extends AppCompatActivity implements ScannerTriggerH
             field.requestFocus();
         }
         return safeMessage;
-    }
-
-    private boolean isValidTagDate(String value) {
-        try {
-            synchronized (tagDateFormat) {
-                tagDateFormat.setLenient(false);
-                return tagDateFormat.parse(value) != null;
-            }
-        } catch (ParseException ignored) {
-            return false;
-        }
     }
 
 }

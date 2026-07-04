@@ -118,19 +118,6 @@ public class CheckoutCsvRepository {
         }
     }
 
-    public boolean isValidDateTime(String value) {
-        if (value == null || value.trim().isEmpty()) {
-            return false;
-        }
-        try {
-            synchronized (EXPORT_DATE_FORMAT) {
-                EXPORT_DATE_FORMAT.setLenient(false);
-                return EXPORT_DATE_FORMAT.parse(value.trim()) != null;
-            }
-        } catch (ParseException ignored) {
-            return false;
-        }
-    }
 
     public boolean isValidDate(String value) {
         if (value == null || value.trim().isEmpty()) {

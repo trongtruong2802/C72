@@ -895,17 +895,9 @@ public class InventoryActivity extends AppCompatActivity implements ScannerTrigg
         return getString(R.string.inventory_empty_placeholder);
     }
 
-    private String getCurrentOperatorName() {
-        return inventoryController.getCurrentOperatorName();
-    }
-
     private String getCurrentInventoryNote() {
         String screenNote = etInventoryNote == null ? "" : safe(etInventoryNote.getText() == null ? "" : etInventoryNote.getText().toString());
         return inventoryController.resolveInventoryNote(screenNote);
-    }
-
-    private String normalize(String value) {
-        return safe(value).trim().toUpperCase(Locale.ROOT);
     }
 
     private String safe(String value) {

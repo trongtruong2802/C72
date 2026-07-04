@@ -1189,10 +1189,6 @@ public class CheckoutActivity extends AppCompatActivity implements ScannerTrigge
         return value == null || value.trim().isEmpty() ? getString(R.string.common_unknown_value) : value;
     }
 
-    private String safe(String value) {
-        return value == null ? "" : value;
-    }
-
     private void showToast(String message) {
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
     }
@@ -1243,10 +1239,6 @@ public class CheckoutActivity extends AppCompatActivity implements ScannerTrigge
         );
         showToast("Cache tai san dang khoi tao. Vui long thu lai sau.");
         return false;
-    }
-
-    private String describeTab(ScreenTab tab) {
-        return tab == ScreenTab.CHECKIN ? "Check In" : "Check Out";
     }
 
     private String describeScannerMode(ScreenTab tab) {
