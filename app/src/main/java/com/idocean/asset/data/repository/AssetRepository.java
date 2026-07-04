@@ -9,7 +9,7 @@ import android.util.Log;
 
 import com.idocean.asset.data.api.ApiClient;
 import com.idocean.asset.data.mapper.AssetApiResponseParser;
-import com.idocean.asset.importer.AssetImportManager;
+import com.idocean.asset.data.io.AssetImportManager;
 import com.idocean.asset.model.Asset;
 import com.idocean.asset.model.AssetFilterCriteria;
 import com.idocean.asset.model.AssetSyncQuery;

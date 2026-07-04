@@ -46,7 +46,7 @@ import com.idocean.asset.model.ImportedCheckoutData;
 import com.idocean.asset.model.SessionConfig;
 import com.idocean.asset.utils.AssetFieldNormalizer;
 import com.idocean.asset.scanner.rfid.ScannerTriggerHandler;
-import com.idocean.asset.storage.AppPermissionManager;
+import com.idocean.asset.utils.AppPermissionManager;
 import com.idocean.asset.utils.HardwareKeyUtils;
 
 import java.io.File;

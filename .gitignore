@@ -16,8 +16,11 @@ local.properties
 .gradle/
 .gradle-home/
 .gradle-home-syncv2/
-.gradle/
-.gradle-home/
 .gradle-temp/
-build/
 .gradle-local/
+build/
+
+# Device caches and dumps
+cache_device.json
+window_dump.xml
+*.apk

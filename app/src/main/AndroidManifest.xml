@@ -15,7 +15,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@style/Theme.Uhfuartdemo">
         <activity
-            android:name="com.idocean.asset.feature.dashboard.DashboardActivity"
+            android:name="com.idocean.asset.ui.dashboard.DashboardActivity"
             android:exported="true"
             android:label="@string/app_name">
             <intent-filter>
