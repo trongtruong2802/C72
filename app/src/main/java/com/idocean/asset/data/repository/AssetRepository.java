@@ -9,13 +9,23 @@ import android.util.Log;
 
 import com.idocean.asset.AppRuntimeContext;
 import com.idocean.asset.data.api.ApiClient;
+import com.idocean.asset.data.cache.AssetCacheStore;
 import com.idocean.asset.data.db.AppDatabase;
 import com.idocean.asset.data.db.AssetDao;
 import com.idocean.asset.data.mapper.AssetApiResponseParser;
 import com.idocean.asset.data.io.AssetImportManager;
+import com.idocean.asset.data.mutation.AssetMutationService;
+import com.idocean.asset.data.mutation.AssetUpdateCallback;
+import com.idocean.asset.data.sync.AssetSyncCoordinatorV2;
+import com.idocean.asset.data.sync.AssetSyncLegacyAdapterV2;
+import com.idocean.asset.data.sync.AssetSyncRequestBuilder;
+import com.idocean.asset.data.sync.AssetSyncProgressCallback;
+import com.idocean.asset.data.sync.AssetSyncEntrypointMode;
+import com.idocean.asset.data.sync.AssetSyncErrorType;
 import com.idocean.asset.model.Asset;
 import com.idocean.asset.model.AssetFilterCriteria;
 import com.idocean.asset.model.AssetSyncQuery;
+import com.idocean.asset.utils.StringUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,62 +54,9 @@ public class AssetRepository {
     private final AssetFilterService assetFilterService = new AssetFilterService();
     private final LogRepository logRepository = LogRepository.getInstance();
     private final AssetCacheStore assetCacheStore = new AssetCacheStore(
-            new AssetDiskCacheStore(),
             assetFilterService,
             DashboardMetricsRepository.getInstance(),
             logRepository
-    );
-    /*
-     * Rollback-only legacy sync implementations. Active sync now goes through
-     * AssetSyncLegacyAdapterV2 -> AssetSyncCoordinatorV2, but these fields stay for the
-     * current rollback window until the final sync cleanup phase removes them together.
-     */
-    @SuppressWarnings("unused")
-    private final AssetSyncService assetSyncService = new AssetSyncService(
-            mainHandler,
-            logRepository,
-            new AssetSyncService.SyncHost() {
-                @Override
-                public void logSyncPhase(long syncStartedAt, String phase, String detail) {
-                    AssetRepository.this.logSyncPhase(syncStartedAt, phase, detail);
-                }
-
-                @Override
-                public void applyCacheSnapshot(List<Asset> assets, String source) {
-                    AssetRepository.this.applyCacheSnapshot(assets, source);
-                }
-
-                @Override
-                public void persistCacheNow(List<Asset> assets, String source) throws IOException {
-                    AssetRepository.this.persistCacheNow(assets, source);
-                }
-
-                @Override
-                public List<Asset> fetchAssetsWithLocalFilterFallback(AssetSyncQuery query, long syncStartedAt) throws IOException {
-                    return AssetRepository.this.fetchAssetsWithLocalFilterFallback(query, syncStartedAt);
-                }
-            }
-    );
-    @SuppressWarnings("unused")
-    private final AssetSyncV2Service assetSyncV2Service = new AssetSyncV2Service(
-            mainHandler,
-            logRepository,
-            new AssetSyncV2Service.SyncHost() {
-                @Override
-                public void logSyncPhase(long syncStartedAt, String phase, String detail) {
-                    AssetRepository.this.logSyncPhase(syncStartedAt, phase, detail);
-                }
-
-                @Override
-                public void applyCacheSnapshot(List<Asset> assets, String source) {
-                    AssetRepository.this.applyCacheSnapshot(assets, source);
-                }
-
-                @Override
-                public void persistCacheNow(List<Asset> assets, String source) throws IOException {
-                    AssetRepository.this.persistCacheNow(assets, source);
-                }
-            }
     );
     private final AssetSyncLegacyAdapterV2 assetSyncLegacyAdapterV2 = new AssetSyncLegacyAdapterV2();
     private final AssetSyncRequestBuilder assetSyncRequestBuilder = new AssetSyncRequestBuilder();
@@ -133,17 +90,17 @@ public class AssetRepository {
         assetCacheStore.loadCacheSnapshotAsync(mainHandler, callback);
     }
 
-    public synchronized List<Asset> getCachedAssets() {
+    public List<Asset> getCachedAssets() {
         ensureDiskCacheLoaded();
         return assetCacheStore.getCachedAssets();
     }
 
-    public synchronized int getCachedAssetCount() {
+    public int getCachedAssetCount() {
         ensureDiskCacheLoaded();
         return assetCacheStore.getCachedAssetCount();
     }
 
-    public synchronized String getLastSource() {
+    public String getLastSource() {
         ensureDiskCacheLoaded();
         return assetCacheStore.getLastSource();
     }
@@ -152,8 +109,8 @@ public class AssetRepository {
         ensureDiskCacheLoaded();
         Context appContext = AppRuntimeContext.get();
         if (appContext != null) {
-            String normalizedCode = normalizeKey(code);
-            String normalizedTid = normalizeKey(tid);
+            String normalizedCode = StringUtils.normalizeKey(code);
+            String normalizedTid = StringUtils.normalizeKey(tid);
             AssetDao dao = AppDatabase.getInstance(appContext).assetDao();
             if (!normalizedCode.isEmpty()) {
                 Asset asset = dao.getByCode(normalizedCode);
@@ -166,13 +123,13 @@ public class AssetRepository {
             return null;
         }
 
-        String normalizedCode = normalizeKey(code);
-        String normalizedTid = normalizeKey(tid);
+        String normalizedCode = StringUtils.normalizeKey(code);
+        String normalizedTid = StringUtils.normalizeKey(tid);
         for (Asset asset : getCachedAssets()) {
-            if (!normalizedCode.isEmpty() && normalizedCode.equals(normalizeKey(asset.getAssetCode()))) {
+            if (!normalizedCode.isEmpty() && normalizedCode.equals(StringUtils.normalizeKey(asset.getAssetCode()))) {
                 return asset;
             }
-            if (!normalizedTid.isEmpty() && normalizedTid.equals(normalizeKey(asset.getTid()))) {
+            if (!normalizedTid.isEmpty() && normalizedTid.equals(StringUtils.normalizeKey(asset.getTid()))) {
                 return asset;
             }
         }
@@ -183,7 +140,7 @@ public class AssetRepository {
         ensureDiskCacheLoaded();
         Context appContext = AppRuntimeContext.get();
         if (appContext != null) {
-            String normalized = normalizeKey(identifier);
+            String normalized = StringUtils.normalizeKey(identifier);
             if (normalized.isEmpty()) {
                 return null;
             }
@@ -195,13 +152,13 @@ public class AssetRepository {
             return null;
         }
 
-        String normalized = normalizeKey(identifier);
+        String normalized = StringUtils.normalizeKey(identifier);
         if (normalized.isEmpty()) {
             return null;
         }
         for (Asset asset : getCachedAssets()) {
-            if (normalized.equals(normalizeKey(asset.getAssetCode()))
-                    || normalized.equals(normalizeKey(asset.getTid()))) {
+            if (normalized.equals(StringUtils.normalizeKey(asset.getAssetCode()))
+                    || normalized.equals(StringUtils.normalizeKey(asset.getTid()))) {
                 return asset;
             }
         }
@@ -641,21 +598,13 @@ public class AssetRepository {
         mainHandler.post(() -> callback.onError(safeType, safeMessage));
     }
 
-    private static String normalizeKey(String value) {
-        return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
-    }
-
-    private static String safeTrim(String value) {
-        return value == null ? "" : value.trim();
-    }
-
     private String joinValues(List<String> values) {
         if (values == null || values.isEmpty()) {
             return "";
         }
         StringBuilder builder = new StringBuilder();
         for (String value : values) {
-            String safeValue = safeTrim(value);
+            String safeValue = StringUtils.safe(value);
             if (safeValue.isEmpty()) {
                 continue;
             }
@@ -676,7 +625,7 @@ public class AssetRepository {
         private final String source;
         private final Map<String, List<String>> distinctValues;
 
-        CacheSnapshot(List<Asset> assets, String source, Map<String, List<String>> distinctValues) {
+        public CacheSnapshot(List<Asset> assets, String source, Map<String, List<String>> distinctValues) {
             this.assets = assets == null ? new ArrayList<>() : new ArrayList<>(assets);
             this.source = source == null ? "CACHE" : source;
             this.distinctValues = distinctValues == null

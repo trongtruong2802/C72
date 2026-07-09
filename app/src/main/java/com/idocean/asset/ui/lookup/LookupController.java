@@ -1,7 +1,7 @@
 package com.idocean.asset.ui.lookup;
 
 import com.idocean.asset.data.repository.AssetRepository;
-import com.idocean.asset.data.repository.AssetUpdateCallback;
+import com.idocean.asset.data.mutation.AssetUpdateCallback;
 import com.idocean.asset.data.repository.LogRepository;
 import com.idocean.asset.model.Asset;
 import com.idocean.asset.utils.AssetFieldNormalizer;
@@ -107,8 +107,6 @@ public final class LookupController {
     private final LogRepository logRepository;
     private final LookupState state = new LookupState();
     private final SimpleDateFormat tagDateFormat = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
-    private List<Asset> cachedAssets = new ArrayList<>();
-
     public LookupController(AssetRepository assetRepository, LogRepository logRepository) {
         this.assetRepository = assetRepository;
         this.logRepository = logRepository;
@@ -116,14 +114,6 @@ public final class LookupController {
 
     public LookupState getState() {
         return state;
-    }
-
-    public void setCachedAssets(List<Asset> assets) {
-        cachedAssets = assets == null ? new ArrayList<>() : new ArrayList<>(assets);
-    }
-
-    public void invalidateCachedAssets() {
-        cachedAssets = new ArrayList<>();
     }
 
     public void restoreState(String savedCode, String savedTid, boolean editing, LookupUi ui) {
@@ -351,7 +341,6 @@ public final class LookupController {
         assetRepository.updateAsset(currentAsset, updatedAsset, new AssetUpdateCallback() {
             @Override
             public void onSuccess(Asset asset, String message) {
-                invalidateCachedAssets();
                 state.setCurrentAsset(asset);
                 state.setEditing(false);
                 state.setSaving(false);
@@ -402,7 +391,6 @@ public final class LookupController {
         assetRepository.handoverAsset(sourceAsset, updatedAsset, valueOrEmpty(draft.handoverDate), new AssetUpdateCallback() {
             @Override
             public void onSuccess(Asset asset, String message) {
-                invalidateCachedAssets();
                 state.setCurrentAsset(asset);
                 state.setSaving(false);
                 state.setEditing(false);
@@ -566,35 +554,7 @@ public final class LookupController {
     }
 
     private Asset findAsset(String code, String tid) {
-        Asset cachedAsset = findAssetInSnapshot(code, tid);
-        if (cachedAsset != null) {
-            return cachedAsset;
-        }
         return assetRepository == null ? null : assetRepository.findAsset(code, tid);
-    }
-
-    private Asset findAssetInSnapshot(String code, String tid) {
-        if (cachedAssets == null || cachedAssets.isEmpty()) {
-            return null;
-        }
-        String normalizedCode = normalizeAssetKey(code);
-        String normalizedTid = normalizeAssetKey(tid);
-        for (Asset asset : cachedAssets) {
-            if (asset == null) {
-                continue;
-            }
-            if (!normalizedCode.isEmpty() && normalizedCode.equals(normalizeAssetKey(asset.getAssetCode()))) {
-                return asset;
-            }
-            if (!normalizedTid.isEmpty() && normalizedTid.equals(normalizeAssetKey(asset.getTid()))) {
-                return asset;
-            }
-        }
-        return null;
-    }
-
-    private String normalizeAssetKey(String value) {
-        return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
     }
 
     private static Asset buildHandoverAsset(Asset sourceAsset, String newUser, String newDepartment, String newLocation) {

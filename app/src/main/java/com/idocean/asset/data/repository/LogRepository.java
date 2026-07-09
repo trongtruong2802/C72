@@ -13,9 +13,11 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.List;
 
 /**
@@ -26,7 +28,7 @@ public class LogRepository {
 
     private static LogRepository instance;
 
-    private final List<OperationLogEntry> logs = new ArrayList<>();
+    private final Deque<OperationLogEntry> logs = new ArrayDeque<>();
     private long nextId = 1L;
 
     private LogRepository() {
@@ -104,7 +106,7 @@ public class LogRepository {
                 error
         ));
         while (logs.size() > MAX_LOGS) {
-            logs.remove(0);
+            logs.removeFirst();
         }
     }
 

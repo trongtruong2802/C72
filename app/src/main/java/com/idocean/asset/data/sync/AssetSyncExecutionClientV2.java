@@ -1,4 +1,4 @@
-package com.idocean.asset.data.repository;
+package com.idocean.asset.data.sync;
 
 import com.google.gson.JsonParseException;
 

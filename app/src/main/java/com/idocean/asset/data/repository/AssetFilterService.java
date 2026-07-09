@@ -1,5 +1,6 @@
 package com.idocean.asset.data.repository;
 
+import com.idocean.asset.data.sync.AssetSyncQueryV2;
 import com.idocean.asset.model.Asset;
 import com.idocean.asset.model.AssetFilterCriteria;
 import com.idocean.asset.model.AssetSyncQuery;
@@ -14,9 +15,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-final class AssetFilterService {
+public final class AssetFilterService {
 
-    List<Asset> filterAssets(List<Asset> assets, AssetFilterCriteria criteria) {
+    public List<Asset> filterAssets(List<Asset> assets, AssetFilterCriteria criteria) {
         AssetFilterCriteria safeCriteria = criteria == null
                 ? new AssetFilterCriteria("", "", "", "", "", "")
                 : criteria;
@@ -32,7 +33,7 @@ final class AssetFilterService {
         return filtered;
     }
 
-    List<Asset> filterAssetsBySyncQuery(List<Asset> assets, AssetSyncQuery query) {
+    public List<Asset> filterAssetsBySyncQuery(List<Asset> assets, AssetSyncQuery query) {
         List<Asset> filteredAssets = new ArrayList<>();
         if (assets == null || assets.isEmpty() || query == null) {
             return filteredAssets;
@@ -45,7 +46,7 @@ final class AssetFilterService {
         return filteredAssets;
     }
 
-    List<Asset> filterAssetsBySyncQuery(List<Asset> assets, AssetSyncQueryV2 query) {
+    public List<Asset> filterAssetsBySyncQuery(List<Asset> assets, AssetSyncQueryV2 query) {
         List<Asset> filteredAssets = new ArrayList<>();
         if (assets == null || assets.isEmpty() || query == null) {
             return filteredAssets;
@@ -58,7 +59,7 @@ final class AssetFilterService {
         return filteredAssets;
     }
 
-    Map<String, List<String>> buildDistinctValueMap(List<Asset> assets) {
+    public Map<String, List<String>> buildDistinctValueMap(List<Asset> assets) {
         LinkedHashMap<String, Set<String>> groupedValues = new LinkedHashMap<>();
         groupedValues.put("inventoryStatus", new LinkedHashSet<>());
         groupedValues.put("assetType", new LinkedHashSet<>());
@@ -84,7 +85,7 @@ final class AssetFilterService {
         return distinctValues;
     }
 
-    List<String> collectDistinctValues(List<Asset> assets, String fieldName) {
+    public List<String> collectDistinctValues(List<Asset> assets, String fieldName) {
         Set<String> values = new LinkedHashSet<>();
         if (assets != null) {
             for (Asset asset : assets) {

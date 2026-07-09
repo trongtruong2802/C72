@@ -1,4 +1,4 @@
-package com.idocean.asset.data.repository;
+package com.idocean.asset.data.checkout;
 
 import android.content.Context;
 import android.database.Cursor;
@@ -12,6 +12,7 @@ import com.idocean.asset.model.ImportedCheckoutData;
 import com.idocean.asset.data.io.CsvReader;
 import com.idocean.asset.data.io.CsvWriter;
 import com.idocean.asset.data.io.ExportFileManager;
+import com.idocean.asset.utils.StringUtils;
 import com.idocean.asset.utils.TimeFormatUtils;
 
 import java.io.BufferedReader;
@@ -336,19 +337,15 @@ public class CheckoutCsvRepository {
     }
 
     public String buildIdentityKey(String tid, String code) {
-        String normalizedTid = normalizeKey(tid);
+        String normalizedTid = StringUtils.normalizeKey(tid);
         if (!normalizedTid.isEmpty()) {
             return "TID:" + normalizedTid;
         }
-        String normalizedCode = normalizeKey(code);
+        String normalizedCode = StringUtils.normalizeKey(code);
         if (!normalizedCode.isEmpty()) {
             return "CODE:" + normalizedCode;
         }
         return "";
-    }
-
-    public String normalizeKey(String value) {
-        return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
     }
 
     private boolean isExcelSeparatorHint(String line) {

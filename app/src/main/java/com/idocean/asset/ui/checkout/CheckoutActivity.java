@@ -31,7 +31,7 @@ import com.google.android.material.progressindicator.LinearProgressIndicator;
 import com.google.android.material.textfield.MaterialAutoCompleteTextView;
 import com.google.android.material.tabs.TabLayout;
 import com.idocean.asset.data.repository.AssetRepository;
-import com.idocean.asset.data.repository.CheckoutCsvRepository;
+import com.idocean.asset.data.checkout.CheckoutCsvRepository;
 import com.idocean.asset.data.repository.LogRepository;
 import com.idocean.asset.data.repository.SessionRepository;
 import com.idocean.asset.diagnostics.AppFailureReporter;

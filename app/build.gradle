@@ -12,6 +12,7 @@ if (localPropertiesFile.exists()) {
 
 def apiKey = localProperties.getProperty("IDO_API_KEY", System.getenv("IDO_API_KEY") ?: "")
 def baseUrl = localProperties.getProperty("IDO_BASE_URL", "https://n8n.idocean.info:8443/webhook/")
+def keystorePassword = localProperties.getProperty("IDO_KEYSTORE_PASSWORD", "123456")
 
 android {
     namespace 'com.idocean.asset'
@@ -32,14 +33,14 @@ android {
     signingConfigs {
         debug {
             storeFile file("uhf-serial_release.jks")
-            storePassword "123456"
-            keyPassword "123456"
+            storePassword keystorePassword
+            keyPassword keystorePassword
             keyAlias "uhf-serial-key"
         }
         release {
             storeFile file("uhf-serial_release.jks")
-            storePassword "123456"
-            keyPassword "123456"
+            storePassword keystorePassword
+            keyPassword keystorePassword
             keyAlias "uhf-serial-key"
         }
     }

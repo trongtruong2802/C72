@@ -1,4 +1,4 @@
-package com.idocean.asset.data.repository;
+package com.idocean.asset.data.cache;
 
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -6,10 +6,15 @@ import android.os.Handler;
 
 import com.idocean.asset.AppRuntimeContext;
 import com.idocean.asset.data.db.AppDatabase;
+import com.idocean.asset.data.repository.AssetFilterService;
+import com.idocean.asset.data.repository.AssetRepository;
+import com.idocean.asset.data.repository.DashboardMetricsRepository;
+import com.idocean.asset.data.repository.LogRepository;
 import com.idocean.asset.diagnostics.AppErrorCodes;
 import com.idocean.asset.diagnostics.DebugEventLogger;
 import com.idocean.asset.diagnostics.PerfLogger;
 import com.idocean.asset.model.Asset;
+import com.idocean.asset.utils.StringUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -18,13 +23,12 @@ import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-final class AssetCacheStore {
+public final class AssetCacheStore {
     private static final String SOURCE_CACHE = "CACHE";
     private static final String SOURCE_DISK_CACHE = "DISK_CACHE";
     private static final String SCREEN = "Cache";
     private static final String FLOW_CACHE_IO = "cache_io";
 
-    private final AssetDiskCacheStore diskCacheStore;
     private final AssetFilterService assetFilterService;
     private final DashboardMetricsRepository dashboardMetricsRepository;
     private final LogRepository logRepository;
@@ -34,23 +38,20 @@ final class AssetCacheStore {
     private String lastSource = SOURCE_CACHE;
     private boolean diskCacheLoaded;
 
-    AssetCacheStore(
-            AssetDiskCacheStore diskCacheStore,
+    public AssetCacheStore(
             AssetFilterService assetFilterService,
             DashboardMetricsRepository dashboardMetricsRepository,
             LogRepository logRepository
     ) {
-        this(diskCacheStore, assetFilterService, dashboardMetricsRepository, logRepository, Executors.newSingleThreadExecutor());
+        this(assetFilterService, dashboardMetricsRepository, logRepository, Executors.newSingleThreadExecutor());
     }
 
-    AssetCacheStore(
-            AssetDiskCacheStore diskCacheStore,
+    public AssetCacheStore(
             AssetFilterService assetFilterService,
             DashboardMetricsRepository dashboardMetricsRepository,
             LogRepository logRepository,
             ExecutorService cacheIoExecutor
     ) {
-        this.diskCacheStore = diskCacheStore == null ? new AssetDiskCacheStore() : diskCacheStore;
         this.assetFilterService = assetFilterService == null ? new AssetFilterService() : assetFilterService;
         this.dashboardMetricsRepository = dashboardMetricsRepository == null
                 ? DashboardMetricsRepository.getInstance()
@@ -59,7 +60,7 @@ final class AssetCacheStore {
         this.cacheIoExecutor = cacheIoExecutor == null ? Executors.newSingleThreadExecutor() : cacheIoExecutor;
     }
 
-    void loadCacheSnapshotAsync(Handler mainHandler, AssetRepository.CacheSnapshotCallback callback) {
+    public void loadCacheSnapshotAsync(Handler mainHandler, AssetRepository.CacheSnapshotCallback callback) {
         cacheIoExecutor.execute(() -> {
             PerfLogger.Trace trace = PerfLogger.start(SCREEN, FLOW_CACHE_IO, "snapshot_requested", "mode=async");
             trace.markStart(logRepository);
@@ -77,19 +78,31 @@ final class AssetCacheStore {
         });
     }
 
-    synchronized List<Asset> getCachedAssets() {
+    public synchronized List<Asset> getCachedAssets() {
+        Context appContext = AppRuntimeContext.get();
+        if (appContext != null) {
+            try {
+                return AppDatabase.getInstance(appContext).assetDao().getAll();
+            } catch (Exception ignored) {}
+        }
         return new ArrayList<>(inMemoryCache);
     }
 
-    synchronized int getCachedAssetCount() {
+    public synchronized int getCachedAssetCount() {
+        Context appContext = AppRuntimeContext.get();
+        if (appContext != null) {
+            try {
+                return AppDatabase.getInstance(appContext).assetDao().count();
+            } catch (Exception ignored) {}
+        }
         return inMemoryCache.size();
     }
 
-    synchronized String getLastSource() {
+    public synchronized String getLastSource() {
         return lastSource;
     }
 
-    synchronized void clearMemoryCache() {
+    public synchronized void clearMemoryCache() {
         inMemoryCache = new ArrayList<>();
         lastSource = SOURCE_CACHE;
         dashboardMetricsRepository.clear();
@@ -97,39 +110,49 @@ final class AssetCacheStore {
         logRepository.logInfo("CACHE", "Da xoa cache database tai san");
     }
 
-    synchronized void updateCache(List<Asset> assets, String source) {
+    public synchronized void updateCache(List<Asset> assets, String source) {
         applyCacheSnapshot(assets, source);
         persistCacheAsync();
     }
 
-    synchronized void applyCacheSnapshot(List<Asset> assets, String source) {
+    public synchronized void applyCacheSnapshot(List<Asset> assets, String source) {
         inMemoryCache = assets == null ? new ArrayList<>() : new ArrayList<>(assets);
         lastSource = source;
         dashboardMetricsRepository.clear();
     }
 
-    synchronized void replaceCachedAsset(Asset originalAsset, Asset updatedAsset) {
+    public synchronized void replaceCachedAsset(Asset originalAsset, Asset updatedAsset) {
         if (updatedAsset == null) {
             return;
         }
+
+        Context appContext = AppRuntimeContext.get();
+        if (appContext != null) {
+            try {
+                AppDatabase.getInstance(appContext).assetDao().insertOrReplace(updatedAsset);
+                logRepository.logInfo("CACHE", "Da cap nhat tai san vao SQLite database", updatedAsset.getAssetCode());
+                return;
+            } catch (Exception ignored) {}
+        }
+
         Integer originalRowNumber = originalAsset == null ? null : originalAsset.getRowNumber();
-        String normalizedOriginalCode = normalizeKey(originalAsset == null ? "" : originalAsset.getAssetCode());
-        String normalizedOriginalTid = normalizeKey(originalAsset == null ? "" : originalAsset.getTid());
-        String normalizedUpdatedCode = normalizeKey(updatedAsset.getAssetCode());
-        String normalizedUpdatedTid = normalizeKey(updatedAsset.getTid());
+        String normalizedOriginalCode = StringUtils.normalizeKey(originalAsset == null ? "" : originalAsset.getAssetCode());
+        String normalizedOriginalTid = StringUtils.normalizeKey(originalAsset == null ? "" : originalAsset.getTid());
+        String normalizedUpdatedCode = StringUtils.normalizeKey(updatedAsset.getAssetCode());
+        String normalizedUpdatedTid = StringUtils.normalizeKey(updatedAsset.getTid());
         for (int index = 0; index < inMemoryCache.size(); index++) {
             Asset current = inMemoryCache.get(index);
             boolean sameRowNumber = originalRowNumber != null
                     && current.getRowNumber() != null
                     && originalRowNumber.equals(current.getRowNumber());
             boolean sameOriginalTid = !normalizedOriginalTid.isEmpty()
-                    && normalizedOriginalTid.equals(normalizeKey(current.getTid()));
+                    && normalizedOriginalTid.equals(StringUtils.normalizeKey(current.getTid()));
             boolean sameOriginalCode = !normalizedOriginalCode.isEmpty()
-                    && normalizedOriginalCode.equals(normalizeKey(current.getAssetCode()));
+                    && normalizedOriginalCode.equals(StringUtils.normalizeKey(current.getAssetCode()));
             boolean sameUpdatedTid = !normalizedUpdatedTid.isEmpty()
-                    && normalizedUpdatedTid.equals(normalizeKey(current.getTid()));
+                    && normalizedUpdatedTid.equals(StringUtils.normalizeKey(current.getTid()));
             boolean sameUpdatedCode = !normalizedUpdatedCode.isEmpty()
-                    && normalizedUpdatedCode.equals(normalizeKey(current.getAssetCode()));
+                    && normalizedUpdatedCode.equals(StringUtils.normalizeKey(current.getAssetCode()));
             if (sameRowNumber || sameOriginalTid || sameOriginalCode || sameUpdatedTid || sameUpdatedCode) {
                 inMemoryCache.set(index, updatedAsset);
                 persistCacheAsync();
@@ -141,7 +164,7 @@ final class AssetCacheStore {
         persistCacheAsync();
     }
 
-    synchronized void ensureDiskCacheLoaded() {
+    public synchronized void ensureDiskCacheLoaded() {
         if (diskCacheLoaded) {
             return;
         }
@@ -153,17 +176,13 @@ final class AssetCacheStore {
         }
 
         try {
-            List<Asset> dbAssets = AppDatabase.getInstance(appContext).assetDao().getAll();
-            if (dbAssets == null || dbAssets.isEmpty()) {
-                return;
-            }
-            inMemoryCache = new ArrayList<>(dbAssets);
             SharedPreferences prefs = appContext.getSharedPreferences("ido_asset_prefs", Context.MODE_PRIVATE);
             lastSource = prefs.getString("last_sync_source", SOURCE_DISK_CACHE);
+            int count = AppDatabase.getInstance(appContext).assetDao().count();
             logRepository.logInfo(
                     "CACHE",
                     "Da khoi phuc cache tai san tu SQLite database",
-                    dbAssets.size() + " asset(s) | " + lastSource
+                    count + " asset(s) | " + lastSource
             );
         } catch (Exception exception) {
             DebugEventLogger.error(
@@ -179,12 +198,12 @@ final class AssetCacheStore {
         }
     }
 
-    synchronized AssetRepository.CacheSnapshot snapshotCurrentState() {
-        List<Asset> assets = new ArrayList<>(inMemoryCache);
+    public synchronized AssetRepository.CacheSnapshot snapshotCurrentState() {
+        List<Asset> assets = getCachedAssets();
         return new AssetRepository.CacheSnapshot(assets, lastSource, assetFilterService.buildDistinctValueMap(assets));
     }
 
-    void persistCacheAsync() {
+    public void persistCacheAsync() {
         Context appContext = AppRuntimeContext.get();
         if (appContext == null) {
             return;
@@ -212,7 +231,7 @@ final class AssetCacheStore {
         });
     }
 
-    void clearDiskCacheAsync() {
+    public void clearDiskCacheAsync() {
         Context appContext = AppRuntimeContext.get();
         if (appContext == null) {
             return;
@@ -226,7 +245,7 @@ final class AssetCacheStore {
         });
     }
 
-    void persistCacheNow(List<Asset> assets, String source) throws IOException {
+    public void persistCacheNow(List<Asset> assets, String source) throws IOException {
         Context appContext = AppRuntimeContext.get();
         if (appContext == null) {
             return;
@@ -234,7 +253,7 @@ final class AssetCacheStore {
         persistCacheNow(appContext, assets, source);
     }
 
-    void persistCacheNow(Context appContext, List<Asset> assets, String source) throws IOException {
+    public void persistCacheNow(Context appContext, List<Asset> assets, String source) throws IOException {
         AppDatabase db = AppDatabase.getInstance(appContext);
         db.runInTransaction(() -> {
             db.assetDao().clear();
@@ -246,9 +265,9 @@ final class AssetCacheStore {
                 .edit()
                 .putString("last_sync_source", source)
                 .apply();
-    }
-
-    private String normalizeKey(String value) {
-        return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+        
+        synchronized (this) {
+            inMemoryCache = new ArrayList<>();
+        }
     }
 }

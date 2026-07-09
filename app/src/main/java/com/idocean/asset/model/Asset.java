@@ -10,7 +10,14 @@ import com.idocean.asset.utils.AssetFieldNormalizer;
 /**
  * Model nội bộ chuẩn hóa cho tài sản, dùng chung cho API và file import.
  */
-@Entity(tableName = "assets", indices = {@Index(value = {"tid"})})
+@Entity(tableName = "assets", indices = {
+        @Index(value = {"tid"}),
+        @Index(value = {"inventoryStatus"}),
+        @Index(value = {"assetType"}),
+        @Index(value = {"department"}),
+        @Index(value = {"location"}),
+        @Index(value = {"assignedUser"})
+})
 public class Asset {
     private final Integer rowNumber;
     
@@ -133,5 +140,18 @@ public class Asset {
 
     private String safe(String value) {
         return value == null || value.trim().isEmpty() ? "-" : value;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Asset asset = (Asset) o;
+        return assetCode.equals(asset.assetCode);
+    }
+
+    @Override
+    public int hashCode() {
+        return assetCode.hashCode();
     }
 }

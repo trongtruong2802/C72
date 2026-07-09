@@ -1,4 +1,4 @@
-package com.idocean.asset.data.repository;
+package com.idocean.asset.data.sync;
 
 import com.idocean.asset.model.AssetSyncQuery;
 
@@ -9,18 +9,18 @@ import java.util.List;
 /**
  * Adapter mong de bridge AssetSyncQuery hien tai sang coordinator Sync V2 moi.
  */
-final class AssetSyncLegacyAdapterV2 {
+public final class AssetSyncLegacyAdapterV2 {
     private final AssetSyncCoordinatorV2 coordinator;
 
-    AssetSyncLegacyAdapterV2() {
+    public AssetSyncLegacyAdapterV2() {
         this(new AssetSyncCoordinatorV2());
     }
 
-    AssetSyncLegacyAdapterV2(AssetSyncCoordinatorV2 coordinator) {
+    public AssetSyncLegacyAdapterV2(AssetSyncCoordinatorV2 coordinator) {
         this.coordinator = coordinator == null ? new AssetSyncCoordinatorV2() : coordinator;
     }
 
-    AssetSyncCoordinatorV2.SyncResult execute(
+    public AssetSyncCoordinatorV2.SyncResult execute(
             AssetSyncQuery legacyQuery,
             AssetSyncEntrypointMode entrypointMode,
             AssetSyncProgressCallback callback
@@ -28,7 +28,7 @@ final class AssetSyncLegacyAdapterV2 {
         return coordinator.sync(toQueryV2(legacyQuery, entrypointMode), new ProgressBridgeCallback(legacyQuery, callback));
     }
 
-    AssetSyncQueryV2 toQueryV2(AssetSyncQuery legacyQuery, AssetSyncEntrypointMode entrypointMode) {
+    public AssetSyncQueryV2 toQueryV2(AssetSyncQuery legacyQuery, AssetSyncEntrypointMode entrypointMode) {
         AssetSyncQuery safeLegacyQuery = legacyQuery == null
                 ? new AssetSyncQuery("", "", "", 0)
                 : legacyQuery;

@@ -1,6 +1,6 @@
 package com.idocean.asset.ui.dashboard;
 
-import com.idocean.asset.data.repository.AssetSyncErrorType;
+import com.idocean.asset.data.sync.AssetSyncErrorType;
 
 import java.util.ArrayList;
 import java.util.Collection;

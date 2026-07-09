@@ -314,7 +314,6 @@ public class LookupActivity extends AppCompatActivity implements ScannerTriggerH
             }
             try {
                 cacheSnapshot = snapshot;
-                lookupController.setCachedAssets(snapshot == null ? new ArrayList<>() : snapshot.getAssets());
                 bindEditableDropdowns();
                 if (deferredSavedState != null) {
                     restoreScreenState(deferredSavedState);

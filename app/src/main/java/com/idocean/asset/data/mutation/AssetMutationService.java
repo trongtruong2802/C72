@@ -1,4 +1,4 @@
-package com.idocean.asset.data.repository;
+package com.idocean.asset.data.mutation;
 
 import android.content.Context;
 import android.os.Handler;
@@ -10,6 +10,7 @@ import com.idocean.asset.data.db.AppDatabase;
 import com.idocean.asset.data.db.PendingMutation;
 import com.idocean.asset.data.db.SyncWorker;
 import com.idocean.asset.utils.NetworkUtils;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -19,6 +20,8 @@ import com.idocean.asset.data.dto.AssetHandoverRequestDto;
 import com.idocean.asset.data.dto.AssetUpdateRequestDto;
 import com.idocean.asset.data.mapper.AssetApiResponseParser;
 import com.idocean.asset.data.mapper.AssetMapper;
+import com.idocean.asset.data.repository.AssetErrorFormatter;
+import com.idocean.asset.data.repository.LogRepository;
 import com.idocean.asset.model.Asset;
 
 import java.io.IOException;
@@ -30,8 +33,8 @@ import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
 
-final class AssetMutationService {
-    interface MutationHost {
+public final class AssetMutationService {
+    public interface MutationHost {
         void replaceCachedAsset(Asset originalAsset, Asset updatedAsset);
 
         void persistCacheAsync();
@@ -41,8 +44,9 @@ final class AssetMutationService {
     private final LogRepository logRepository;
     private final MutationHost host;
     private final Gson gson = new GsonBuilder().serializeNulls().create();
+    private final ExecutorService offlineMutationExecutor = Executors.newSingleThreadExecutor();
 
-    AssetMutationService(Handler mainHandler, LogRepository logRepository, MutationHost host) {
+    public AssetMutationService(Handler mainHandler, LogRepository logRepository, MutationHost host) {
         this.mainHandler = mainHandler;
         this.logRepository = logRepository == null ? LogRepository.getInstance() : logRepository;
         this.host = host == null
@@ -58,7 +62,7 @@ final class AssetMutationService {
                 : host;
     }
 
-    void updateAsset(Asset originalAsset, Asset asset, AssetUpdateCallback callback) {
+    public void updateAsset(Asset originalAsset, Asset asset, AssetUpdateCallback callback) {
         if (asset == null) {
             dispatchUpdateError(callback, "Khong tim thay du lieu tai san de cap nhat tai san.");
             return;
@@ -100,7 +104,7 @@ final class AssetMutationService {
         );
     }
 
-    void handoverAsset(Asset originalAsset, Asset asset, String handoverDate, AssetUpdateCallback callback) {
+    public void handoverAsset(Asset originalAsset, Asset asset, String handoverDate, AssetUpdateCallback callback) {
         if (asset == null) {
             dispatchUpdateError(callback, "Khong tim thay du lieu tai san de ban giao.");
             return;
@@ -728,7 +732,7 @@ final class AssetMutationService {
         Context appContext = AppRuntimeContext.get();
         if (appContext == null) return;
 
-        Executors.newSingleThreadExecutor().execute(() -> {
+        offlineMutationExecutor.execute(() -> {
             try {
                 PendingMutation mutation = new PendingMutation(
                         actionType,

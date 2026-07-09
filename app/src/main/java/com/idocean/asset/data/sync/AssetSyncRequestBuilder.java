@@ -1,4 +1,4 @@
-package com.idocean.asset.data.repository;
+package com.idocean.asset.data.sync;
 
 import com.idocean.asset.model.AssetSyncQuery;
 
@@ -13,14 +13,14 @@ import okhttp3.HttpUrl;
  * Legacy multi-value sync request builder kept only for rollback-only sync implementations.
  */
 @Deprecated
-final class AssetSyncRequestBuilder {
+public final class AssetSyncRequestBuilder {
     private static final String GET_DB_PATH = "get-db";
 
-    String buildGetDbUrl(String baseUrl, AssetSyncQuery query, Integer limit, Integer offset) {
+    public String buildGetDbUrl(String baseUrl, AssetSyncQuery query, Integer limit, Integer offset) {
         return buildGetDbUrl(baseUrl, query, null, limit, offset);
     }
 
-    String buildGetDbUrl(
+    public String buildGetDbUrl(
             String baseUrl,
             AssetSyncQuery query,
             String locationOverride,

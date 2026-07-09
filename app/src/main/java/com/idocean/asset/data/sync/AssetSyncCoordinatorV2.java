@@ -1,6 +1,9 @@
-package com.idocean.asset.data.repository;
+package com.idocean.asset.data.sync;
 
 import com.google.gson.JsonParseException;
+import com.idocean.asset.data.repository.LogRepository;
+import com.idocean.asset.data.repository.AssetFilterService;
+import com.idocean.asset.data.repository.AssetErrorFormatter;
 import com.idocean.asset.model.Asset;
 
 import java.io.IOException;

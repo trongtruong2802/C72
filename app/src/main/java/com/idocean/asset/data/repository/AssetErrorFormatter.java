@@ -7,11 +7,11 @@ import java.util.Locale;
 /**
  * Helper nho de phan loai va dinh dang thong diep loi cho sync/mutation.
  */
-final class AssetErrorFormatter {
+public final class AssetErrorFormatter {
     private AssetErrorFormatter() {
     }
 
-    static boolean isTimeout(Throwable throwable) {
+    public static boolean isTimeout(Throwable throwable) {
         if (throwable == null) {
             return false;
         }
@@ -24,7 +24,7 @@ final class AssetErrorFormatter {
                 || message.contains("timed out");
     }
 
-    static String buildConnectivityMessage(String endpointName, String actionLabel, Throwable throwable) {
+    public static String buildConnectivityMessage(String endpointName, String actionLabel, Throwable throwable) {
         String safeEndpoint = safe(endpointName);
         String safeAction = safe(actionLabel);
         if (isTimeout(throwable)) {
@@ -33,7 +33,7 @@ final class AssetErrorFormatter {
         return "Khong ket noi duoc backend " + safeEndpoint + " khi " + safeAction + ". Thay doi chua duoc luu.";
     }
 
-    static String buildHttpMessage(int httpCode, String errorBody, String endpointName, String actionLabel) {
+    public static String buildHttpMessage(int httpCode, String errorBody, String endpointName, String actionLabel) {
         String safeEndpoint = safe(endpointName);
         String safeAction = safe(actionLabel);
         String normalizedError = safe(errorBody).toLowerCase(Locale.ROOT);
@@ -49,7 +49,7 @@ final class AssetErrorFormatter {
         return "Backend " + safeEndpoint + " tra HTTP " + httpCode + " khi " + safeAction + ".";
     }
 
-    static String buildBusinessMessage(String endpointName, String actionLabel, String detail) {
+    public static String buildBusinessMessage(String endpointName, String actionLabel, String detail) {
         String safeEndpoint = safe(endpointName);
         String safeAction = safe(actionLabel);
         String safeDetail = safe(detail);
@@ -59,7 +59,7 @@ final class AssetErrorFormatter {
         return "Backend " + safeEndpoint + " bao xu ly " + safeAction + " khong thanh cong: " + safeDetail;
     }
 
-    static String buildDebugSummary(String endpointName, String actionLabel, Throwable throwable, String extraDetail) {
+    public static String buildDebugSummary(String endpointName, String actionLabel, Throwable throwable, String extraDetail) {
         StringBuilder builder = new StringBuilder();
         builder.append("endpoint=").append(safe(endpointName));
         builder.append(" | action=").append(safe(actionLabel));

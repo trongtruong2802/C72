@@ -1,4 +1,4 @@
-package com.idocean.asset.data.repository;
+package com.idocean.asset.data.sync;
 
 final class AssetSyncPagePolicy {
     static final int UNKNOWN_TOTAL_COUNT = -1;

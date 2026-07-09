@@ -1,4 +1,4 @@
-package com.idocean.asset.data.repository;
+package com.idocean.asset.data.sync;
 
 /**
  * Phan loai loi dong bo de UI co the hien thi thong diep ro hon.

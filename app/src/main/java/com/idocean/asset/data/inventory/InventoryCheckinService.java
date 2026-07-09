@@ -1,4 +1,4 @@
-package com.idocean.asset.data.repository;
+package com.idocean.asset.data.inventory;
 
 import android.util.Log;
 
@@ -6,6 +6,8 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import com.idocean.asset.data.api.ApiClient;
 import com.idocean.asset.data.api.AssetApiService;
+import com.idocean.asset.data.repository.LogRepository;
+import com.idocean.asset.data.repository.AssetErrorFormatter;
 import com.idocean.asset.data.dto.InventoryCheckinBatchRequestDto;
 import com.idocean.asset.data.dto.InventoryCheckinRequestItemDto;
 import com.idocean.asset.data.dto.InventoryCheckinResponseDto;

@@ -1,4 +1,4 @@
-package com.idocean.asset.data.repository;
+package com.idocean.asset.data.mutation;
 
 import com.idocean.asset.model.Asset;
 

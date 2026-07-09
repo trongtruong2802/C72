@@ -1,8 +1,9 @@
 package com.idocean.asset.ui.checkout;
 
-import com.idocean.asset.data.repository.CheckoutCsvRepository;
+import com.idocean.asset.data.checkout.CheckoutCsvRepository;
 import com.idocean.asset.data.repository.LogRepository;
 import com.idocean.asset.model.Asset;
+import com.idocean.asset.utils.StringUtils;
 import com.idocean.asset.model.CheckInResultItem;
 import com.idocean.asset.model.CheckInResultStatus;
 import com.idocean.asset.model.CheckOutFormData;
@@ -512,7 +513,7 @@ public final class CheckoutController {
     }
 
     private String normalizeKey(String value) {
-        return csvRepository.normalizeKey(value);
+        return StringUtils.normalizeKey(value);
     }
 
     private String valueOrDash(String value) {
