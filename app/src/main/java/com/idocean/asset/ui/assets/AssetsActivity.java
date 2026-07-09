@@ -72,6 +72,8 @@ public class AssetsActivity extends AppCompatActivity {
     private View cardAssetsFilters;
     private AssetRepository.CacheSnapshot currentSnapshot;
     private volatile long activeFilterRequestToken;
+    private final List<Asset> fullFilteredList = new ArrayList<>();
+    private int currentLimit = 50;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -121,6 +123,16 @@ public class AssetsActivity extends AppCompatActivity {
         RecyclerView rvAssets = findViewById(R.id.rvAssets);
         rvAssets.setLayoutManager(new LinearLayoutManager(this));
         rvAssets.setAdapter(assetListAdapter);
+        rvAssets.addOnScrollListener(new RecyclerView.OnScrollListener() {
+            @Override
+            public void onScrolled(RecyclerView recyclerView, int dx, int dy) {
+                super.onScrolled(recyclerView, dx, dy);
+                LinearLayoutManager layoutManager = (LinearLayoutManager) recyclerView.getLayoutManager();
+                if (layoutManager != null && layoutManager.findLastVisibleItemPosition() >= assetListAdapter.getItemCount() - 5) {
+                    loadNextPage();
+                }
+            }
+        });
     }
 
     private void setupControls() {
@@ -380,13 +392,29 @@ public class AssetsActivity extends AppCompatActivity {
                 if (isFinishing() || isDestroyed() || requestToken != activeFilterRequestToken) {
                     return;
                 }
-                assetListAdapter.submitItems(filteredAssets);
+                fullFilteredList.clear();
+                if (filteredAssets != null) {
+                    fullFilteredList.addAll(filteredAssets);
+                }
+                currentLimit = 50;
+                List<Asset> sublist = fullFilteredList.subList(0, Math.min(fullFilteredList.size(), currentLimit));
+                assetListAdapter.submitItems(sublist);
+
                 tvAssetResultCount.setText(getString(R.string.assets_result_count, filteredAssets.size()));
                 updateSummary(totalCount, filteredAssets.size(), activeFilters);
                 updateEmptyState(filteredAssets.isEmpty(), totalCount > 0);
                 trace.finish(logRepository, "filter_completed", "resultCount=" + filteredAssets.size());
             });
         });
+    }
+
+    private void loadNextPage() {
+        if (fullFilteredList.isEmpty() || currentLimit >= fullFilteredList.size()) {
+            return;
+        }
+        currentLimit += 50;
+        List<Asset> sublist = fullFilteredList.subList(0, Math.min(fullFilteredList.size(), currentLimit));
+        assetListAdapter.submitItems(sublist);
     }
 
     private void updateSummary(int totalCount, int visibleCount, int activeFilterCount) {

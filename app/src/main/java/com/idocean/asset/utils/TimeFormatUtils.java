@@ -1,13 +1,20 @@
 package com.idocean.asset.utils;
 
-import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
 /**
  * Helper format thời gian để hiển thị và export.
  */
 public final class TimeFormatUtils {
+
+    private static final DateTimeFormatter FILE_TIMESTAMP_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss", Locale.getDefault());
+    private static final DateTimeFormatter DISPLAY_TIMESTAMP_FORMATTER =
+            DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss", Locale.getDefault());
 
     private TimeFormatUtils() {
     }
@@ -17,10 +24,11 @@ public final class TimeFormatUtils {
     }
 
     public static String fileTimestamp() {
-        return new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
+        return LocalDateTime.now().format(FILE_TIMESTAMP_FORMATTER);
     }
 
     public static String displayTimestamp(long millis) {
-        return new SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(new Date(millis));
+        return LocalDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.systemDefault())
+                .format(DISPLAY_TIMESTAMP_FORMATTER);
     }
 }

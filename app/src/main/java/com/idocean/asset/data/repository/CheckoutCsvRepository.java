@@ -23,10 +23,13 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -101,21 +104,17 @@ public class CheckoutCsvRepository {
             "result_note"
     };
 
-    private static final SimpleDateFormat EXPORT_DATE_FORMAT =
-            new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US);
-    private static final SimpleDateFormat CHECKOUT_DATE_FORMAT =
-            new SimpleDateFormat("yyyy-MM-dd", Locale.US);
+    private static final DateTimeFormatter EXPORT_DATE_FORMAT =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.US);
+    private static final DateTimeFormatter CHECKOUT_DATE_FORMAT =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.US);
 
     public String now() {
-        synchronized (EXPORT_DATE_FORMAT) {
-            return EXPORT_DATE_FORMAT.format(new Date());
-        }
+        return LocalDateTime.now().format(EXPORT_DATE_FORMAT);
     }
 
     public String today() {
-        synchronized (CHECKOUT_DATE_FORMAT) {
-            return CHECKOUT_DATE_FORMAT.format(new Date());
-        }
+        return LocalDate.now().format(CHECKOUT_DATE_FORMAT);
     }
 
 
@@ -124,11 +123,9 @@ public class CheckoutCsvRepository {
             return false;
         }
         try {
-            synchronized (CHECKOUT_DATE_FORMAT) {
-                CHECKOUT_DATE_FORMAT.setLenient(false);
-                return CHECKOUT_DATE_FORMAT.parse(value.trim()) != null;
-            }
-        } catch (ParseException ignored) {
+            LocalDate.parse(value.trim(), CHECKOUT_DATE_FORMAT);
+            return true;
+        } catch (DateTimeParseException ignored) {
             return false;
         }
     }
@@ -138,12 +135,9 @@ public class CheckoutCsvRepository {
             return -1L;
         }
         try {
-            synchronized (CHECKOUT_DATE_FORMAT) {
-                CHECKOUT_DATE_FORMAT.setLenient(false);
-                Date parsed = CHECKOUT_DATE_FORMAT.parse(value.trim());
-                return parsed == null ? -1L : parsed.getTime();
-            }
-        } catch (ParseException ignored) {
+            LocalDate parsed = LocalDate.parse(value.trim(), CHECKOUT_DATE_FORMAT);
+            return parsed.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli();
+        } catch (DateTimeParseException ignored) {
             return -1L;
         }
     }
@@ -152,9 +146,8 @@ public class CheckoutCsvRepository {
         if (timeMillis <= 0L) {
             return "";
         }
-        synchronized (CHECKOUT_DATE_FORMAT) {
-            return CHECKOUT_DATE_FORMAT.format(new Date(timeMillis));
-        }
+        return LocalDate.ofInstant(Instant.ofEpochMilli(timeMillis), ZoneId.systemDefault())
+                .format(CHECKOUT_DATE_FORMAT);
     }
 
     public String generateTicketId() {
@@ -372,9 +365,8 @@ public class CheckoutCsvRepository {
         if (timestamp <= 0L) {
             return "";
         }
-        synchronized (EXPORT_DATE_FORMAT) {
-            return EXPORT_DATE_FORMAT.format(new Date(timestamp));
-        }
+        return LocalDateTime.ofInstant(Instant.ofEpochMilli(timestamp), ZoneId.systemDefault())
+                .format(EXPORT_DATE_FORMAT);
     }
 
     private long parseTimestamp(String value) {
@@ -382,11 +374,9 @@ public class CheckoutCsvRepository {
             return 0L;
         }
         try {
-            synchronized (EXPORT_DATE_FORMAT) {
-                Date parsed = EXPORT_DATE_FORMAT.parse(value.trim());
-                return parsed == null ? 0L : parsed.getTime();
-            }
-        } catch (ParseException ignored) {
+            LocalDateTime parsed = LocalDateTime.parse(value.trim(), EXPORT_DATE_FORMAT);
+            return parsed.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+        } catch (DateTimeParseException ignored) {
             return 0L;
         }
     }

@@ -11,6 +11,7 @@ if (localPropertiesFile.exists()) {
 }
 
 def apiKey = localProperties.getProperty("IDO_API_KEY", System.getenv("IDO_API_KEY") ?: "")
+def baseUrl = localProperties.getProperty("IDO_BASE_URL", "https://n8n.idocean.info:8443/webhook/")
 
 android {
     namespace 'com.idocean.asset'
@@ -23,7 +24,7 @@ android {
         versionCode 2
         versionName "1.4.6"
         buildConfigField "boolean", "Test", "false"
-        buildConfigField "String", "BASE_URL", "\"https://n8n.idocean.info:8443/webhook/\""
+        buildConfigField "String", "BASE_URL", "\"${baseUrl}\""
         buildConfigField "String", "API_KEY", "\"${apiKey.replace("\\", "\\\\").replace("\"", "\\\"")}\""
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -91,6 +92,9 @@ dependencies {
     implementation 'com.squareup.retrofit2:retrofit:2.11.0'
     implementation 'com.squareup.retrofit2:converter-gson:2.11.0'
     implementation 'com.squareup.okhttp3:logging-interceptor:4.12.0'
+    implementation 'androidx.room:room-runtime:2.6.1'
+    annotationProcessor 'androidx.room:room-compiler:2.6.1'
+    implementation 'androidx.work:work-runtime:2.9.0'
 
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.json:json:20240303'

@@ -1,9 +1,11 @@
 package com.idocean.asset.data.repository;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.os.Handler;
 
 import com.idocean.asset.AppRuntimeContext;
+import com.idocean.asset.data.db.AppDatabase;
 import com.idocean.asset.diagnostics.AppErrorCodes;
 import com.idocean.asset.diagnostics.DebugEventLogger;
 import com.idocean.asset.diagnostics.PerfLogger;
@@ -92,7 +94,7 @@ final class AssetCacheStore {
         lastSource = SOURCE_CACHE;
         dashboardMetricsRepository.clear();
         clearDiskCacheAsync();
-        logRepository.logInfo("CACHE", "Da xoa cache runtime tai san");
+        logRepository.logInfo("CACHE", "Da xoa cache database tai san");
     }
 
     synchronized void updateCache(List<Asset> assets, String source) {
@@ -130,11 +132,13 @@ final class AssetCacheStore {
                     && normalizedUpdatedCode.equals(normalizeKey(current.getAssetCode()));
             if (sameRowNumber || sameOriginalTid || sameOriginalCode || sameUpdatedTid || sameUpdatedCode) {
                 inMemoryCache.set(index, updatedAsset);
+                persistCacheAsync();
                 return;
             }
         }
         // Thêm tài sản mới vào cache nếu không tìm thấy để cập nhật
         inMemoryCache.add(updatedAsset);
+        persistCacheAsync();
     }
 
     synchronized void ensureDiskCacheLoaded() {
@@ -149,20 +153,19 @@ final class AssetCacheStore {
         }
 
         try {
-            AssetDiskCacheStore.CacheSnapshot snapshot = diskCacheStore.read(appContext);
-            if (snapshot == null || snapshot.assets == null || snapshot.assets.isEmpty()) {
+            List<Asset> dbAssets = AppDatabase.getInstance(appContext).assetDao().getAll();
+            if (dbAssets == null || dbAssets.isEmpty()) {
                 return;
             }
-            inMemoryCache = new ArrayList<>(snapshot.assets);
-            lastSource = snapshot.source == null || snapshot.source.trim().isEmpty()
-                    ? SOURCE_DISK_CACHE
-                    : snapshot.source;
+            inMemoryCache = new ArrayList<>(dbAssets);
+            SharedPreferences prefs = appContext.getSharedPreferences("ido_asset_prefs", Context.MODE_PRIVATE);
+            lastSource = prefs.getString("last_sync_source", SOURCE_DISK_CACHE);
             logRepository.logInfo(
                     "CACHE",
-                    "Da khoi phuc cache tai san tu bo nho noi bo",
-                    snapshot.assets.size() + " asset(s) | " + lastSource
+                    "Da khoi phuc cache tai san tu SQLite database",
+                    dbAssets.size() + " asset(s) | " + lastSource
             );
-        } catch (IOException exception) {
+        } catch (Exception exception) {
             DebugEventLogger.error(
                     logRepository,
                     SCREEN,
@@ -171,8 +174,8 @@ final class AssetCacheStore {
                     AppErrorCodes.CACHE_READ_FAILED,
                     exception.getMessage()
             );
-            logRepository.logError("CACHE", "Khong doc duoc cache tai san noi bo", exception.getMessage());
-            diskCacheStore.clear(appContext);
+            logRepository.logError("CACHE", "Khong doc duoc cache tai san tu database", exception.getMessage());
+            clearDiskCacheAsync();
         }
     }
 
@@ -195,7 +198,7 @@ final class AssetCacheStore {
         cacheIoExecutor.execute(() -> {
             try {
                 persistCacheNow(appContext, snapshot, source);
-            } catch (IOException exception) {
+            } catch (Exception exception) {
                 DebugEventLogger.error(
                         logRepository,
                         SCREEN,
@@ -204,7 +207,7 @@ final class AssetCacheStore {
                         AppErrorCodes.CACHE_WRITE_FAILED,
                         exception.getMessage()
                 );
-                logRepository.logError("CACHE", "Khong luu duoc cache tai san noi bo", exception.getMessage());
+                logRepository.logError("CACHE", "Khong luu duoc cache tai san vao database", exception.getMessage());
             }
         });
     }
@@ -214,7 +217,13 @@ final class AssetCacheStore {
         if (appContext == null) {
             return;
         }
-        cacheIoExecutor.execute(() -> diskCacheStore.clear(appContext));
+        cacheIoExecutor.execute(() -> {
+            AppDatabase.getInstance(appContext).assetDao().clear();
+            appContext.getSharedPreferences("ido_asset_prefs", Context.MODE_PRIVATE)
+                    .edit()
+                    .remove("last_sync_source")
+                    .apply();
+        });
     }
 
     void persistCacheNow(List<Asset> assets, String source) throws IOException {
@@ -226,7 +235,17 @@ final class AssetCacheStore {
     }
 
     void persistCacheNow(Context appContext, List<Asset> assets, String source) throws IOException {
-        diskCacheStore.write(appContext, assets, source);
+        AppDatabase db = AppDatabase.getInstance(appContext);
+        db.runInTransaction(() -> {
+            db.assetDao().clear();
+            if (assets != null && !assets.isEmpty()) {
+                db.assetDao().insertOrReplaceAll(assets);
+            }
+        });
+        appContext.getSharedPreferences("ido_asset_prefs", Context.MODE_PRIVATE)
+                .edit()
+                .putString("last_sync_source", source)
+                .apply();
     }
 
     private String normalizeKey(String value) {

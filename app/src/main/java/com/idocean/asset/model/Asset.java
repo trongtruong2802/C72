@@ -1,12 +1,21 @@
 package com.idocean.asset.model;
 
+import androidx.annotation.NonNull;
+import androidx.room.Entity;
+import androidx.room.Index;
+import androidx.room.PrimaryKey;
+
 import com.idocean.asset.utils.AssetFieldNormalizer;
 
 /**
  * Model nội bộ chuẩn hóa cho tài sản, dùng chung cho API và file import.
  */
+@Entity(tableName = "assets", indices = {@Index(value = {"tid"})})
 public class Asset {
     private final Integer rowNumber;
+    
+    @PrimaryKey
+    @NonNull
     private final String assetCode;
     private final String tid;
     private final String oldCode;
@@ -24,7 +33,7 @@ public class Asset {
     private final String note;
     private final String source;
 
-    public Asset(Integer rowNumber, String assetCode, String tid, String oldCode, String oldSerial,
+    public Asset(Integer rowNumber, @NonNull String assetCode, String tid, String oldCode, String oldSerial,
                  String assetName, String assetType, String serialNumber, String department,
                  String assignedUser, String location, String inventoryStatus, String assetCondition,
                  String tagDate, String tagBy, String note, String source) {

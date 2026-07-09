@@ -107,4 +107,9 @@
     <string name="dashboard_metrics_not_ready">Chưa có phiên kiểm kê nào, hiện tạm tính từ cache runtime.</string>
     <string name="dashboard_source_empty">Chưa có dữ liệu</string>
     <string name="dashboard_session_note_empty">Không có ghi chú</string>
+    <string name="lookup_status_not_found_in_system">Tài sản chưa có trong hệ thống. Hãy nhập thông tin để thêm.</string>
+    <string name="lookup_status_new_scanned_tag">Phát hiện tài sản mới! Đã hiển thị mã quét và TID.</string>
+    <string name="lookup_status_manual_add_title">Nhập thông tin tài sản mới.</string>
+    <string name="lookup_status_cancelled_registration">Đã hủy đăng ký.</string>
+    <string name="lookup_required_asset_code">Mã tài sản (Code) là bắt buộc</string>
 </resources>

@@ -402,5 +402,30 @@ public class LookupControllerTest {
         public String lookupHandoverFailed(String message) {
             return "Handover failed: " + message;
         }
+
+        @Override
+        public String lookupStatusNotFoundInSystem() {
+            return "Tài sản chưa có trong hệ thống. Hãy nhập thông tin để thêm.";
+        }
+
+        @Override
+        public String lookupStatusNewScannedTag() {
+            return "Phát hiện tài sản mới! Đã hiển thị mã quét và TID.";
+        }
+
+        @Override
+        public String lookupStatusManualAddTitle() {
+            return "Nhập thông tin tài sản mới.";
+        }
+
+        @Override
+        public String lookupStatusCancelledRegistration() {
+            return "Đã hủy đăng ký.";
+        }
+
+        @Override
+        public String lookupRequiredAssetCode() {
+            return "Mã tài sản (Code) là bắt buộc";
+        }
     }
 }

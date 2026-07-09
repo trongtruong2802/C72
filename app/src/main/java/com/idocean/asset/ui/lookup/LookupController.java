@@ -53,6 +53,16 @@ public final class LookupController {
         String lookupHandoverSuccess();
 
         String lookupHandoverFailed(String message);
+
+        String lookupStatusNotFoundInSystem();
+
+        String lookupStatusNewScannedTag();
+
+        String lookupStatusManualAddTitle();
+
+        String lookupStatusCancelledRegistration();
+
+        String lookupRequiredAssetCode();
     }
 
     public static final class ValidationResult {
@@ -164,7 +174,7 @@ public final class LookupController {
             ui.renderAsset(newAsset);
             ui.renderEditMode(true);
             ui.renderSaving(false);
-            ui.showStatus("Tài sản chưa có trong hệ thống. Hãy nhập thông tin để thêm.");
+            ui.showStatus(ui.lookupStatusNotFoundInSystem());
             return;
         }
         publishAsset(ui, asset, ui.lookupOpenedFromList(), false);
@@ -201,8 +211,8 @@ public final class LookupController {
             ui.renderAsset(newAsset);
             ui.renderEditMode(true);
             ui.renderSaving(false);
-            ui.showStatus("Tài sản chưa có trong hệ thống. Hãy nhập thông tin để thêm.");
-            ui.showToast("Phát hiện tài sản mới! Đã hiển thị mã quét và TID.");
+            ui.showStatus(ui.lookupStatusNotFoundInSystem());
+            ui.showToast(ui.lookupStatusNewScannedTag());
             return;
         }
 
@@ -241,7 +251,7 @@ public final class LookupController {
         ui.renderAsset(newAsset);
         ui.renderEditMode(true);
         ui.renderSaving(false);
-        ui.showStatus("Nhập thông tin tài sản mới.");
+        ui.showStatus(ui.lookupStatusManualAddTitle());
     }
 
     public void startEdit(LookupUi ui) {
@@ -267,7 +277,7 @@ public final class LookupController {
         if (currentAsset.getRowNumber() == null) {
             state.reset();
             ui.renderAsset(null);
-            ui.showStatus("Đã hủy đăng ký.");
+            ui.showStatus(ui.lookupStatusCancelledRegistration());
             ui.renderEditMode(false);
             ui.renderSaving(false);
             return;
@@ -283,7 +293,7 @@ public final class LookupController {
 
     public ValidationResult validateEditableDraft(EditableAssetDraft draft, LookupUi ui) {
         if (draft == null || valueOrEmpty(draft.code).trim().isEmpty()) {
-            return ValidationResult.error(ValidationResult.Field.ASSET_CODE, "Mã tài sản (Code) là bắt buộc");
+            return ValidationResult.error(ValidationResult.Field.ASSET_CODE, ui.lookupRequiredAssetCode());
         }
         if (draft == null || valueOrEmpty(draft.assetName).isEmpty()) {
             return ValidationResult.error(ValidationResult.Field.ASSET_NAME, ui.lookupNeedAssetName());

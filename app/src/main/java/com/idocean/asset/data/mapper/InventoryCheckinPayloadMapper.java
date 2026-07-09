@@ -6,9 +6,11 @@ import com.idocean.asset.model.InventoryItemStatus;
 import com.idocean.asset.model.InventoryScanSource;
 import com.idocean.asset.model.InventorySessionItem;
 
-import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
@@ -16,7 +18,8 @@ import java.util.Locale;
  * Mapper doc lap tu inventory session sang payload check-in.
  */
 public final class InventoryCheckinPayloadMapper {
-    private static final String API_TIMESTAMP_PATTERN = "yyyy-MM-dd HH:mm:ss";
+    private static final DateTimeFormatter API_TIMESTAMP_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.US);
     private static final String WORKFLOW_STATUS_CHECKED = "\u0110\u00e3 ki\u1ec3m k\u00ea";
     private static final String WORKFLOW_STATUS_OUTSIDE = "Ngo\u00e0i danh s\u00e1ch";
 
@@ -74,7 +77,8 @@ public final class InventoryCheckinPayloadMapper {
         if (scannedAt <= 0L) {
             return null;
         }
-        return new SimpleDateFormat(API_TIMESTAMP_PATTERN, Locale.US).format(new Date(scannedAt));
+        return LocalDateTime.ofInstant(Instant.ofEpochMilli(scannedAt), ZoneId.systemDefault())
+                .format(API_TIMESTAMP_FORMATTER);
     }
 
     private static String resolveWorkflowInventoryStatus(InventoryItemStatus status) {

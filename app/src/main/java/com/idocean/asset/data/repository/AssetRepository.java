@@ -7,7 +7,10 @@ import android.os.Looper;
 import android.os.SystemClock;
 import android.util.Log;
 
+import com.idocean.asset.AppRuntimeContext;
 import com.idocean.asset.data.api.ApiClient;
+import com.idocean.asset.data.db.AppDatabase;
+import com.idocean.asset.data.db.AssetDao;
 import com.idocean.asset.data.mapper.AssetApiResponseParser;
 import com.idocean.asset.data.io.AssetImportManager;
 import com.idocean.asset.model.Asset;
@@ -147,6 +150,22 @@ public class AssetRepository {
 
     public Asset findAsset(String code, String tid) {
         ensureDiskCacheLoaded();
+        Context appContext = AppRuntimeContext.get();
+        if (appContext != null) {
+            String normalizedCode = normalizeKey(code);
+            String normalizedTid = normalizeKey(tid);
+            AssetDao dao = AppDatabase.getInstance(appContext).assetDao();
+            if (!normalizedCode.isEmpty()) {
+                Asset asset = dao.getByCode(normalizedCode);
+                if (asset != null) return asset;
+            }
+            if (!normalizedTid.isEmpty()) {
+                Asset asset = dao.getByTid(normalizedTid);
+                if (asset != null) return asset;
+            }
+            return null;
+        }
+
         String normalizedCode = normalizeKey(code);
         String normalizedTid = normalizeKey(tid);
         for (Asset asset : getCachedAssets()) {
@@ -162,6 +181,20 @@ public class AssetRepository {
 
     public Asset findAssetByAnyIdentifier(String identifier) {
         ensureDiskCacheLoaded();
+        Context appContext = AppRuntimeContext.get();
+        if (appContext != null) {
+            String normalized = normalizeKey(identifier);
+            if (normalized.isEmpty()) {
+                return null;
+            }
+            AssetDao dao = AppDatabase.getInstance(appContext).assetDao();
+            Asset asset = dao.getByCode(normalized);
+            if (asset != null) return asset;
+            asset = dao.getByTid(normalized);
+            if (asset != null) return asset;
+            return null;
+        }
+
         String normalized = normalizeKey(identifier);
         if (normalized.isEmpty()) {
             return null;
@@ -467,9 +500,13 @@ public class AssetRepository {
 
     public void importAssetsFromCsv(final Context context, final Uri uri, final AssetRepositoryCallback callback) {
         ensureDiskCacheLoaded();
-        new Thread(() -> {
+        final Context appContext = context != null ? context.getApplicationContext() : null;
+        syncExecutor.execute(() -> {
             try {
-                List<Asset> assets = importManager.importFromUri(context, uri);
+                if (appContext == null) {
+                    throw new IllegalArgumentException("Context is null");
+                }
+                List<Asset> assets = importManager.importFromUri(appContext, uri);
                 if (assets == null || assets.isEmpty()) {
                     logRepository.logError("IMPORT_FILE", "File CSV tai san khong co du lieu hop le");
                     dispatchError(callback, "File CSV khong co dong du lieu hop le.");
@@ -485,7 +522,7 @@ public class AssetRepository {
                 logRepository.logError("IMPORT_FILE", "Khong the import CSV tai san", exception.getMessage());
                 dispatchError(callback, "Khong the import CSV. Vui long kiem tra dinh dang file.");
             }
-        }).start();
+        });
     }
 
     public synchronized void clearMemoryCache() {

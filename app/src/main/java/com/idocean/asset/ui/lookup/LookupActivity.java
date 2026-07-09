@@ -881,6 +881,31 @@ public class LookupActivity extends AppCompatActivity implements ScannerTriggerH
         return getString(R.string.lookup_handover_failed, message);
     }
 
+    @Override
+    public String lookupStatusNotFoundInSystem() {
+        return getString(R.string.lookup_status_not_found_in_system);
+    }
+
+    @Override
+    public String lookupStatusNewScannedTag() {
+        return getString(R.string.lookup_status_new_scanned_tag);
+    }
+
+    @Override
+    public String lookupStatusManualAddTitle() {
+        return getString(R.string.lookup_status_manual_add_title);
+    }
+
+    @Override
+    public String lookupStatusCancelledRegistration() {
+        return getString(R.string.lookup_status_cancelled_registration);
+    }
+
+    @Override
+    public String lookupRequiredAssetCode() {
+        return getString(R.string.lookup_required_asset_code);
+    }
+
     private void restoreScreenState(Bundle savedInstanceState) {
         if (savedInstanceState == null) {
             return;

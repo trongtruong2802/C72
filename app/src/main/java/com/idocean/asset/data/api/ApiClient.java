@@ -27,6 +27,7 @@ public final class ApiClient {
                 Request.Builder builder = chain.request().newBuilder();
                 if (AppConfig.hasApiKey()) {
                     builder.addHeader("x-api-key", AppConfig.API_KEY);
+                    builder.addHeader("Authorization", "Bearer " + AppConfig.API_KEY);
                 }
                 return chain.proceed(builder.build());
             };

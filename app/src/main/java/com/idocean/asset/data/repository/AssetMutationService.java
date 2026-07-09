@@ -1,9 +1,16 @@
 package com.idocean.asset.data.repository;
 
+import android.content.Context;
 import android.os.Handler;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.idocean.asset.AppRuntimeContext;
+import com.idocean.asset.data.db.AppDatabase;
+import com.idocean.asset.data.db.PendingMutation;
+import com.idocean.asset.data.db.SyncWorker;
+import com.idocean.asset.utils.NetworkUtils;
+import java.util.concurrent.Executors;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -63,6 +70,14 @@ final class AssetMutationService {
             return;
         }
 
+        Context appContext = AppRuntimeContext.get();
+        if (appContext != null && !NetworkUtils.isConnected(appContext)) {
+            queueOfflineMutation("UPDATE", asset.getAssetCode(), gson.toJson(requestDto.getPayload()));
+            host.replaceCachedAsset(originalAsset, asset);
+            dispatchUpdateSuccess(callback, asset, "Đã lưu tạm thời ngoại tuyến. Dữ liệu sẽ tự động đồng bộ khi có mạng.");
+            return;
+        }
+
         executeMutationRequest(
                 requestDto.getPayload(),
                 requestDto,
@@ -98,6 +113,18 @@ final class AssetMutationService {
         );
         if (!handoverRequestDto.hasRequiredFields()) {
             dispatchUpdateError(callback, "Thieu du lieu bat buoc de ghi nhan ban giao.");
+            return;
+        }
+
+        Context appContext = AppRuntimeContext.get();
+        if (appContext != null && !NetworkUtils.isConnected(appContext)) {
+            queueOfflineMutation("HANDOVER", asset.getAssetCode(), gson.toJson(handoverRequestDto.getPayload()));
+            AssetUpdateRequestDto updateRequestDto = AssetUpdateRequestDto.fromAssets(originalAsset, asset);
+            if (updateRequestDto.hasChanges()) {
+                queueOfflineMutation("UPDATE", asset.getAssetCode(), gson.toJson(updateRequestDto.getPayload()));
+            }
+            host.replaceCachedAsset(originalAsset, asset);
+            dispatchUpdateSuccess(callback, asset, "Đã lưu tạm thời ngoại tuyến. Dữ liệu bàn giao sẽ tự động đồng bộ khi có mạng.");
             return;
         }
 
@@ -694,6 +721,58 @@ final class AssetMutationService {
 
         static UpdateResponseAssetMatch withMatch(Asset asset) {
             return new UpdateResponseAssetMatch(true, asset);
+        }
+    }
+
+    private void queueOfflineMutation(String actionType, String assetCode, String payloadJson) {
+        Context appContext = AppRuntimeContext.get();
+        if (appContext == null) return;
+
+        Executors.newSingleThreadExecutor().execute(() -> {
+            try {
+                PendingMutation mutation = new PendingMutation(
+                        actionType,
+                        assetCode,
+                        payloadJson,
+                        System.currentTimeMillis()
+                );
+                AppDatabase.getInstance(appContext).pendingMutationDao().insert(mutation);
+                logRepository.logInfo(
+                        "OFFLINE_QUEUE",
+                        "Da xep hang thao tac offline (" + actionType + ")",
+                        assetCode
+                );
+
+                enqueueOfflineSyncWork(appContext);
+            } catch (Exception e) {
+                logRepository.logError(
+                        "OFFLINE_QUEUE",
+                        "Loi khi xep hang thao tac offline",
+                        e.getMessage()
+                );
+            }
+        });
+    }
+
+    private void enqueueOfflineSyncWork(Context context) {
+        try {
+            androidx.work.Constraints constraints = new androidx.work.Constraints.Builder()
+                    .setRequiredNetworkType(androidx.work.NetworkType.CONNECTED)
+                    .build();
+
+            androidx.work.OneTimeWorkRequest syncRequest = new androidx.work.OneTimeWorkRequest.Builder(SyncWorker.class)
+                    .setConstraints(constraints)
+                    .addTag("offline_sync_work")
+                    .build();
+
+            androidx.work.WorkManager.getInstance(context)
+                    .enqueueUniqueWork(
+                            "offline_sync_work_unique",
+                            androidx.work.ExistingWorkPolicy.KEEP,
+                            syncRequest
+                    );
+        } catch (Exception e) {
+            logRepository.logError("OFFLINE_WORK", "Khong the khoi chay WorkManager", e.getMessage());
         }
     }
 }
