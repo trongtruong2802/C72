@@ -109,9 +109,9 @@ final class LookupUiRenderer {
         etLookupDepartment.setText(AssetFieldNormalizer.normalizeDepartmentForDisplay(asset.getDepartment()), false);
         etLookupUser.setText(valueOrEmpty(asset.getAssignedUser()));
         etLookupLocation.setText(AssetLocationUtils.normalizeLocationForDisplay(asset.getLocation()), false);
-        String status = asset.getInventoryStatus();
+        String status = asset.getAssetCondition();
         if (status == null || status.trim().isEmpty()) {
-            status = asset.getAssetCondition();
+            status = asset.getInventoryStatus();
         }
         etLookupInventoryStatus.setText(AssetFieldNormalizer.normalizeInventoryStatusForDisplay(status), false);
         etLookupNote.setText(valueOrEmpty(asset.getNote()));

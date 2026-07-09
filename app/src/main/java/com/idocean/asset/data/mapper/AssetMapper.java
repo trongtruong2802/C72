@@ -49,10 +49,10 @@ public final class AssetMapper {
             "location", "location_name", "room", "area", "vi_tri", "vi_tri_dia_diem"
     };
     private static final String[] INVENTORY_STATUS_KEYS = {
-            "inventory_status", "status", "check_status", "trang_thai_kiem_ke", "trang_thai_su_dung", "trang_thai", "usage_status", "inventorystatus"
+            "inventory_status", "status", "check_status", "trang_thai_kiem_ke", "trang_thai", "inventorystatus"
     };
     private static final String[] CONDITION_KEYS = {
-            "condition", "asset_condition", "tinh_trang"
+            "condition", "asset_condition", "tinh_trang", "assetcondition", "trang_thai_su_dung", "usage_status"
     };
     private static final String[] TAG_DATE_KEYS = {
             "tag_date", "tagged_at", "created_at", "ngay_dan_tag", "ngay_kiem_ke", "created"

@@ -47,7 +47,7 @@ public class AssetMapperTest {
     }
 
     @Test
-    public void fromApiJson_mapsInventoryStatusAliases() {
+    public void fromApiJson_mapsAssetConditionAliases() {
         JsonObject object = JsonParser.parseString("{" +
                 "\"Code\":\"TEST_CODE\"," +
                 "\"Trạng thái sử dụng\":\"Đang sử dụng\"" +
@@ -56,6 +56,6 @@ public class AssetMapperTest {
         Asset asset = AssetMapper.fromApiJson(object, 1);
 
         assertEquals("TEST_CODE", asset.getAssetCode());
-        assertEquals("Đang sử dụng", asset.getInventoryStatus());
+        assertEquals("Đang sử dụng", asset.getAssetCondition());
     }
 }
