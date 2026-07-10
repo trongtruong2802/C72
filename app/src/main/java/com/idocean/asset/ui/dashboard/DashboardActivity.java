@@ -416,19 +416,19 @@ public class DashboardActivity extends AppCompatActivity implements DashboardCon
         quickActionsInflated = true;
         bindNavigation(R.id.buttonOpenInventory, InventoryActivity.class);
         bindNavigation(R.id.buttonOpenCheckOut, CheckoutActivity.class);
-        bindNavigation(R.id.buttonOpenCheckIn, AssetsActivity.class);
-        bindNavigation(R.id.buttonOpenHandover, LogsActivity.class);
+        bindNavigation(R.id.buttonOpenAssets, AssetsActivity.class);
+        bindNavigation(R.id.buttonOpenLogs, LogsActivity.class);
         bindNavigation(R.id.buttonOpenLookup, LookupActivity.class);
-        bindNavigation(R.id.buttonOpenHistory, SettingsActivity.class);
+        bindNavigation(R.id.buttonOpenSettings, SettingsActivity.class);
 
         View[] quickActionViews = new View[]{
                 inflated.findViewById(R.id.tvDashboardQuickActionsTitle),
                 inflated.findViewById(R.id.buttonOpenInventory),
                 inflated.findViewById(R.id.buttonOpenCheckOut),
-                inflated.findViewById(R.id.buttonOpenCheckIn),
-                inflated.findViewById(R.id.buttonOpenHandover),
+                inflated.findViewById(R.id.buttonOpenAssets),
+                inflated.findViewById(R.id.buttonOpenLogs),
                 inflated.findViewById(R.id.buttonOpenLookup),
-                inflated.findViewById(R.id.buttonOpenHistory)
+                inflated.findViewById(R.id.buttonOpenSettings)
         };
 
         if (introAnimated) {

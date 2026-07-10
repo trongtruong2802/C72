@@ -32,7 +32,7 @@
             android:focusable="true"
             app:cardBackgroundColor="@color/dashboard_surface"
             app:cardCornerRadius="24dp"
-            app:cardElevation="0dp"
+            app:cardElevation="2dp"
             app:rippleColor="@color/dashboard_primary_soft"
             app:strokeColor="@color/dashboard_border"
             app:strokeWidth="1dp">
@@ -89,7 +89,7 @@
             android:focusable="true"
             app:cardBackgroundColor="@color/dashboard_surface"
             app:cardCornerRadius="24dp"
-            app:cardElevation="0dp"
+            app:cardElevation="2dp"
             app:rippleColor="@color/dashboard_primary_soft"
             app:strokeColor="@color/dashboard_border"
             app:strokeWidth="1dp">
@@ -145,7 +145,7 @@
         android:weightSum="2">
 
         <com.google.android.material.card.MaterialCardView
-            android:id="@+id/buttonOpenCheckIn"
+            android:id="@+id/buttonOpenAssets"
             android:layout_width="0dp"
             android:layout_height="140dp"
             android:layout_marginEnd="8dp"
@@ -154,7 +154,7 @@
             android:focusable="true"
             app:cardBackgroundColor="@color/dashboard_surface"
             app:cardCornerRadius="24dp"
-            app:cardElevation="0dp"
+            app:cardElevation="2dp"
             app:rippleColor="@color/dashboard_primary_soft"
             app:strokeColor="@color/dashboard_border"
             app:strokeWidth="1dp">
@@ -202,7 +202,7 @@
         </com.google.android.material.card.MaterialCardView>
 
         <com.google.android.material.card.MaterialCardView
-            android:id="@+id/buttonOpenHandover"
+            android:id="@+id/buttonOpenLogs"
             android:layout_width="0dp"
             android:layout_height="140dp"
             android:layout_marginStart="8dp"
@@ -211,7 +211,7 @@
             android:focusable="true"
             app:cardBackgroundColor="@color/dashboard_surface"
             app:cardCornerRadius="24dp"
-            app:cardElevation="0dp"
+            app:cardElevation="2dp"
             app:rippleColor="@color/dashboard_primary_soft"
             app:strokeColor="@color/dashboard_border"
             app:strokeWidth="1dp">
@@ -276,7 +276,7 @@
             android:focusable="true"
             app:cardBackgroundColor="@color/dashboard_surface"
             app:cardCornerRadius="24dp"
-            app:cardElevation="0dp"
+            app:cardElevation="2dp"
             app:rippleColor="@color/dashboard_primary_soft"
             app:strokeColor="@color/dashboard_border"
             app:strokeWidth="1dp">
@@ -324,7 +324,7 @@
         </com.google.android.material.card.MaterialCardView>
 
         <com.google.android.material.card.MaterialCardView
-            android:id="@+id/buttonOpenHistory"
+            android:id="@+id/buttonOpenSettings"
             android:layout_width="0dp"
             android:layout_height="140dp"
             android:layout_marginStart="8dp"
@@ -333,7 +333,7 @@
             android:focusable="true"
             app:cardBackgroundColor="@color/dashboard_surface"
             app:cardCornerRadius="24dp"
-            app:cardElevation="0dp"
+            app:cardElevation="2dp"
             app:rippleColor="@color/dashboard_primary_soft"
             app:strokeColor="@color/dashboard_border"
             app:strokeWidth="1dp">

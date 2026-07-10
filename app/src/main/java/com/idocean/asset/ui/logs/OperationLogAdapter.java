@@ -56,7 +56,7 @@ public class OperationLogAdapter extends RecyclerView.Adapter<OperationLogAdapte
         ));
         holder.tvLogTime.setText(formatTimestamp(item.getTimestamp()));
         holder.tvLogMessage.setText(valueOrFallback(item.getMessage(), context.getString(R.string.logs_detail_empty)));
-        holder.tvLogDetail.setText(valueOrFallback(item.getDetail(), context.getString(R.string.logs_detail_empty)));
+        holder.tvLogDetail.setText(valueOrFallback(parseAndFormatLogDetail(item.getDetail()), context.getString(R.string.logs_detail_empty)));
     }
 
     @Override
@@ -73,6 +73,65 @@ public class OperationLogAdapter extends RecyclerView.Adapter<OperationLogAdapte
 
     private String valueOrFallback(String value, String fallback) {
         return value == null || value.trim().isEmpty() ? fallback : value.trim();
+    }
+
+    private String parseAndFormatLogDetail(String detail) {
+        if (detail == null || detail.trim().isEmpty()) {
+            return "";
+        }
+        if (!detail.contains("|")) {
+            return detail.trim();
+        }
+        StringBuilder formatted = new StringBuilder();
+        String[] parts = detail.split("\\s*\\|\\s*");
+        for (String part : parts) {
+            String[] kv = part.split("=", 2);
+            if (kv.length == 2) {
+                String key = kv[0].trim();
+                String val = kv[1].trim();
+                String label;
+                switch (key) {
+                    case "timestamp":
+                        label = "Thời gian";
+                        break;
+                    case "screen":
+                        label = "Màn hình";
+                        break;
+                    case "flow":
+                        label = "Quy trình";
+                        break;
+                    case "event":
+                        label = "Sự kiện";
+                        break;
+                    case "durationMs":
+                        label = "Thời gian chạy";
+                        val = val + " ms";
+                        break;
+                    case "source":
+                        label = "Nguồn";
+                        break;
+                    case "detail":
+                        label = "Chi tiết";
+                        if (val.startsWith("assetCount=")) {
+                            val = "Tổng " + val.substring(11) + " tài sản";
+                        }
+                        break;
+                    default:
+                        label = key;
+                        break;
+                }
+                if (formatted.length() > 0) {
+                    formatted.append("\n");
+                }
+                formatted.append("• ").append(label).append(": ").append(val);
+            } else {
+                if (formatted.length() > 0) {
+                    formatted.append("\n");
+                }
+                formatted.append("• ").append(part.trim());
+            }
+        }
+        return formatted.toString();
     }
 
     static final class OperationLogViewHolder extends RecyclerView.ViewHolder {

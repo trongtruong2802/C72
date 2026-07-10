@@ -29,11 +29,11 @@
     <string name="lookup_cancel_action">Cancel</string>
     <string name="lookup_save_action">Save</string>
     <string name="lookup_scan_hint">Quét RFID hoặc QR để tìm nhanh tài sản trong cache runtime.</string>
-    <string name="lookup_readonly_hint">Form mac dinh o che do chi xem. Code mo khi bam Edit, TID luon o che do chi doc.</string>
+    <string name="lookup_readonly_hint">Form mặc định ở chế độ chỉ xem. Mã tài sản (Code) mở khi bấm Sửa, TID luôn ở chế độ chỉ đọc.</string>
     <string name="lookup_status_empty">Hãy quét RFID hoặc QR để tìm tài sản trong cache runtime.</string>
     <string name="lookup_status_found">Đã tìm thấy tài sản: %1$s</string>
     <string name="lookup_status_not_found">Không tìm thấy tài sản trong cache runtime.</string>
-    <string name="lookup_status_editing">Dang chinh sua tai san. Code da mo de cap nhat, TID van o che do chi doc.</string>
+    <string name="lookup_status_editing">Đang chỉnh sửa tài sản. Code đã mở để cập nhật, TID vẫn ở chế độ chỉ đọc.</string>
     <string name="lookup_status_update_failed">Không lưu được thay đổi. %1$s</string>
     <string name="lookup_status_update_success">Đã cập nhật tài sản thành công.</string>
     <string name="lookup_field_code">Code</string>

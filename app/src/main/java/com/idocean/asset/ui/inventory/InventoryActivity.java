@@ -99,22 +99,17 @@ public class InventoryActivity extends AppCompatActivity implements ScannerTrigg
     private TextView tvSummaryTotal;
     private TextView tvSummaryDatasetTotal;
     private TextView tvSummaryChecked;
-    private EditText etInventoryNote;
     private EditText etInventorySearch;
     private RadioGroup rgScannerType;
     private RadioButton rbScannerRfid;
     private RadioButton rbScannerQr;
     private SwitchCompat swContinuousScan;
     private SwitchCompat swSingleScan;
-    private Button btnInventoryLoadApi;
     private Button btnInventoryImportCsv;
     private Button btnInventoryStart;
-    private Button btnInventoryStop;
     private Button btnInventoryClear;
     private Button btnInventoryExport;
     private Button btnInventorySubmitCheckin;
-    private Button btnInventoryToggleOptions;
-    private View layoutInventoryOptions;
     private RecyclerView rvInventoryResults;
     private TextView tvInventoryEmpty;
 
@@ -229,22 +224,17 @@ public class InventoryActivity extends AppCompatActivity implements ScannerTrigg
         tvSummaryTotal = findViewById(R.id.tvSummaryTotal);
         tvSummaryDatasetTotal = findViewById(R.id.tvSummaryDatasetTotal);
         tvSummaryChecked = findViewById(R.id.tvSummaryChecked);
-        etInventoryNote = findViewById(R.id.etInventoryNote);
         etInventorySearch = findViewById(R.id.etInventorySearch);
         rgScannerType = findViewById(R.id.rgScannerType);
         rbScannerRfid = findViewById(R.id.rbScannerRfid);
         rbScannerQr = findViewById(R.id.rbScannerQr);
         swContinuousScan = findViewById(R.id.swContinuousScan);
         swSingleScan = findViewById(R.id.swSingleScan);
-        btnInventoryLoadApi = findViewById(R.id.btnInventoryLoadApi);
         btnInventoryImportCsv = findViewById(R.id.btnInventoryImportCsv);
         btnInventoryStart = findViewById(R.id.btnInventoryStart);
-        btnInventoryStop = findViewById(R.id.btnInventoryStop);
         btnInventoryClear = findViewById(R.id.btnInventoryClear);
         btnInventoryExport = findViewById(R.id.btnInventoryExport);
         btnInventorySubmitCheckin = findViewById(R.id.btnInventorySubmitCheckin);
-        btnInventoryToggleOptions = findViewById(R.id.btnInventoryToggleOptions);
-        layoutInventoryOptions = findViewById(R.id.layoutInventoryOptions);
         rvInventoryResults = findViewById(R.id.rvInventoryResults);
         tvInventoryEmpty = findViewById(R.id.tvInventoryEmpty);
     }
@@ -284,7 +274,6 @@ public class InventoryActivity extends AppCompatActivity implements ScannerTrigg
 
         rgScannerType.setOnCheckedChangeListener((group, checkedId) -> updateScannerStatus());
 
-        btnInventoryLoadApi.setOnClickListener(v -> loadAssetsFromApi());
         btnInventoryImportCsv.setOnClickListener(v -> importCsvLauncher.launch(new String[]{
                 "text/csv",
                 "text/comma-separated-values",
@@ -299,8 +288,6 @@ public class InventoryActivity extends AppCompatActivity implements ScannerTrigg
                 startSelectedScanner();
             }
         });
-        btnInventoryStop.setOnClickListener(v -> stopAllScanning());
-        btnInventoryToggleOptions.setOnClickListener(v -> toggleInventoryOptions());
         btnInventoryClear.setOnClickListener(v -> clearSessionResults());
         btnInventoryExport.setOnClickListener(v -> exportInventoryResults());
         btnInventorySubmitCheckin.setOnClickListener(v -> submitInventoryCheckin());
@@ -376,51 +363,9 @@ public class InventoryActivity extends AppCompatActivity implements ScannerTrigg
         ));
     }
 
-    private void toggleInventoryOptions() {
-        if (layoutInventoryOptions == null || btnInventoryToggleOptions == null) {
-            return;
-        }
-        boolean showing = layoutInventoryOptions.getVisibility() == View.VISIBLE;
-        layoutInventoryOptions.setVisibility(showing ? View.GONE : View.VISIBLE);
-        btnInventoryToggleOptions.setText(showing
-                ? R.string.inventory_toggle_options_show
-                : R.string.inventory_toggle_options_hide);
-    }
 
-    private void loadAssetsFromApi() {
-        if (!NetworkUtils.isConnected(this)) {
-            tvDataSourceStatus.setText(getString(R.string.inventory_source_api_offline));
-            showToast(getString(R.string.inventory_source_api_offline));
-            return;
-        }
-        long requestToken = beginSourceLoad();
-        tvDataSourceStatus.setText(getString(R.string.inventory_source_loading_api));
-        assetRepository.loadAssetsFromApi(new AssetRepositoryCallback() {
-            @Override
-            public void onSuccess(List<Asset> assets, String message) {
-                if (!isCurrentSourceLoad(requestToken)) {
-                    logStaleSourceCallbackIgnored("api", requestToken);
-                    return;
-                }
-                applySourceAssetsAsync(assets, getString(R.string.inventory_source_api_label), true, requestToken);
-                showToast(message);
-            }
 
-            @Override
-            public void onError(String message) {
-                if (!isCurrentSourceLoad(requestToken)) {
-                    logStaleSourceCallbackIgnored("api", requestToken);
-                    return;
-                }
-                failSourceLoad(requestToken);
-                tvDataSourceStatus.setText(message);
-                showToast(message);
-                if (!initialSourceResolved) {
-                    hydrateCachedAssetsAsync();
-                }
-            }
-        });
-    }
+
 
     private void onCsvSelected(Uri uri) {
         if (isFinishing() || isDestroyed()) {
@@ -896,8 +841,7 @@ public class InventoryActivity extends AppCompatActivity implements ScannerTrigg
     }
 
     private String getCurrentInventoryNote() {
-        String screenNote = etInventoryNote == null ? "" : safe(etInventoryNote.getText() == null ? "" : etInventoryNote.getText().toString());
-        return inventoryController.resolveInventoryNote(screenNote);
+        return inventoryController.resolveInventoryNote("");
     }
 
     private String safe(String value) {
@@ -948,7 +892,7 @@ public class InventoryActivity extends AppCompatActivity implements ScannerTrigg
                 "source_not_ready",
                 "request=scan | resolved=" + initialSourceResolved + " | loading=" + sourceLoadInProgress
         );
-        showToast("Du lieu kiem ke dang khoi tao. Vui long thu lai sau.");
+        showToast(getString(R.string.inventory_initializing_data));
         return false;
     }
 

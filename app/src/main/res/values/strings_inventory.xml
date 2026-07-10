@@ -91,4 +91,5 @@
     <string name="inventory_field_operator">Người kiểm kê</string>
     <string name="inventory_field_count">Số lượt</string>
     <string name="inventory_field_note">Ghi chú</string>
+    <string name="inventory_initializing_data">Dữ liệu kiểm kê đang khởi tạo. Vui lòng thử lại sau.</string>
 </resources>
