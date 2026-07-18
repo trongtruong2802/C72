@@ -1,5 +1,6 @@
-package com.idocean.asset.data.repository;
+package com.idocean.asset.data.sync;
 
+import com.idocean.asset.data.sync.AssetSyncPagePolicy;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;

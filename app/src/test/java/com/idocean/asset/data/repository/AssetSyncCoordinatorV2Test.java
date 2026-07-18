@@ -1,8 +1,15 @@
-package com.idocean.asset.data.repository;
+package com.idocean.asset.data.sync;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import com.idocean.asset.data.repository.LogRepository;
+import com.idocean.asset.data.sync.AssetSyncCombinationBuilderV2;
+import com.idocean.asset.data.sync.AssetSyncCoordinatorV2;
+import com.idocean.asset.data.sync.AssetSyncErrorType;
+import com.idocean.asset.data.sync.AssetSyncExecutionClientV2;
+import com.idocean.asset.data.sync.AssetSyncExecutorV2;
+import com.idocean.asset.data.sync.AssetSyncQueryV2;
 import com.idocean.asset.model.Asset;
 import com.idocean.asset.utils.AssetLocationUtils;
 

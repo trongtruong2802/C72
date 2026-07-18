@@ -119,24 +119,43 @@
                         android:textColor="@android:color/white"
                         android:textSize="15sp" />
 
-                    <TextView
-                        android:id="@+id/tvDashboardPreviewCount"
+                    <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:text="@string/dashboard_preview_idle"
-                        android:textColor="#111111"
-                        android:textSize="13sp"
-                        android:textStyle="bold" />
+                        android:layout_marginTop="12dp"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:id="@+id/tvDashboardPreviewCount"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="@string/dashboard_preview_idle"
+                            android:textColor="@android:color/white"
+                            android:textSize="13sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvDashboardSyncPercentage"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="0%"
+                            android:textColor="#59C13F"
+                            android:textSize="14sp"
+                            android:textStyle="bold"
+                            android:visibility="gone" />
+                    </LinearLayout>
 
                     <com.google.android.material.progressindicator.LinearProgressIndicator
                         android:id="@+id/progressDashboardSync"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="16dp"
+                        android:layout_marginTop="8dp"
                         android:visibility="gone"
-                        app:indicatorColor="#1F65B0"
-                        app:trackColor="#99C4E8" />
+                        app:indicatorColor="#59C13F"
+                        app:trackColor="#40FFFFFF"
+                        app:trackThickness="6dp"
+                        app:trackCornerRadius="3dp" />
 
                     <TextView
                         android:id="@+id/tvDashboardSyncProgress"
@@ -144,7 +163,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
                         android:text="@string/dashboard_progress_idle"
-                        android:textColor="#111111"
+                        android:textColor="#CCFFFFFF"
                         android:textSize="12sp" />
 
                     <com.google.android.material.card.MaterialCardView
@@ -219,6 +238,7 @@
                             </LinearLayout>
 
                             <com.google.android.material.textfield.TextInputLayout
+                                android:id="@+id/layoutDashboardDepartmentFilter"
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="16dp"
@@ -231,7 +251,10 @@
                                 app:boxCornerRadiusTopStart="18dp"
                                 app:hintTextColor="#333333"
                                 app:startIconDrawable="@android:drawable/ic_menu_sort_by_size"
-                                app:startIconTint="@color/dashboard_primary_dark">
+                                app:startIconTint="@color/dashboard_primary_dark"
+                                app:endIconMode="custom"
+                                app:endIconDrawable="@android:drawable/ic_menu_close_clear_cancel"
+                                app:endIconTint="@color/dashboard_muted">
 
                                 <com.google.android.material.textfield.MaterialAutoCompleteTextView
                                     android:id="@+id/actDashboardDepartmentFilter"
@@ -246,6 +269,7 @@
                             </com.google.android.material.textfield.TextInputLayout>
 
                             <com.google.android.material.textfield.TextInputLayout
+                                android:id="@+id/layoutDashboardLocationFilter"
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="12dp"
@@ -258,7 +282,10 @@
                                 app:boxCornerRadiusTopStart="18dp"
                                 app:hintTextColor="#333333"
                                 app:startIconDrawable="@android:drawable/ic_menu_mylocation"
-                                app:startIconTint="@color/dashboard_primary_dark">
+                                app:startIconTint="@color/dashboard_primary_dark"
+                                app:endIconMode="custom"
+                                app:endIconDrawable="@android:drawable/ic_menu_close_clear_cancel"
+                                app:endIconTint="@color/dashboard_muted">
 
                                 <com.google.android.material.textfield.MaterialAutoCompleteTextView
                                     android:id="@+id/etDashboardLocationFilter"
@@ -273,6 +300,7 @@
                             </com.google.android.material.textfield.TextInputLayout>
 
                             <com.google.android.material.textfield.TextInputLayout
+                                android:id="@+id/layoutDashboardAssetTypeFilter"
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="12dp"
@@ -285,7 +313,10 @@
                                 app:boxCornerRadiusTopStart="18dp"
                                 app:hintTextColor="#333333"
                                 app:startIconDrawable="@android:drawable/ic_menu_agenda"
-                                app:startIconTint="@color/dashboard_primary_dark">
+                                app:startIconTint="@color/dashboard_primary_dark"
+                                app:endIconMode="custom"
+                                app:endIconDrawable="@android:drawable/ic_menu_close_clear_cancel"
+                                app:endIconTint="@color/dashboard_muted">
 
                                 <com.google.android.material.textfield.MaterialAutoCompleteTextView
                                     android:id="@+id/etDashboardAssetTypeFilter"

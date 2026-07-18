@@ -1,4 +1,6 @@
-package com.idocean.asset.data.repository;
+package com.idocean.asset.data.inventory;
+
+import com.idocean.asset.data.repository.LogRepository;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;

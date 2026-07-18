@@ -55,7 +55,7 @@ public class DashboardControllerTest {
 
         assertEquals(DashboardState.SyncUiState.IDLE, controller.getState().getSyncUiState());
         assertEquals(
-                com.idocean.asset.data.repository.AssetSyncErrorType.NONE,
+                com.idocean.asset.data.sync.AssetSyncErrorType.NONE,
                 controller.getState().getSyncErrorType()
         );
     }

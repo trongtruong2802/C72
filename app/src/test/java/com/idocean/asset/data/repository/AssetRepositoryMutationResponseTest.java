@@ -1,4 +1,4 @@
-package com.idocean.asset.data.repository;
+package com.idocean.asset.data.mutation;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -6,6 +6,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import com.idocean.asset.data.dto.AssetUpdateRequestDto;
+import com.idocean.asset.data.mutation.AssetMutationService;
 import com.idocean.asset.model.Asset;
 
 import org.junit.Test;

@@ -131,7 +131,6 @@ public final class AssetCacheStore {
             try {
                 AppDatabase.getInstance(appContext).assetDao().insertOrReplace(updatedAsset);
                 logRepository.logInfo("CACHE", "Da cap nhat tai san vao SQLite database", updatedAsset.getAssetCode());
-                return;
             } catch (Exception ignored) {}
         }
 
@@ -140,6 +139,7 @@ public final class AssetCacheStore {
         String normalizedOriginalTid = StringUtils.normalizeKey(originalAsset == null ? "" : originalAsset.getTid());
         String normalizedUpdatedCode = StringUtils.normalizeKey(updatedAsset.getAssetCode());
         String normalizedUpdatedTid = StringUtils.normalizeKey(updatedAsset.getTid());
+        boolean matchedInMemory = false;
         for (int index = 0; index < inMemoryCache.size(); index++) {
             Asset current = inMemoryCache.get(index);
             boolean sameRowNumber = originalRowNumber != null
@@ -155,13 +155,18 @@ public final class AssetCacheStore {
                     && normalizedUpdatedCode.equals(StringUtils.normalizeKey(current.getAssetCode()));
             if (sameRowNumber || sameOriginalTid || sameOriginalCode || sameUpdatedTid || sameUpdatedCode) {
                 inMemoryCache.set(index, updatedAsset);
-                persistCacheAsync();
-                return;
+                matchedInMemory = true;
+                break;
             }
         }
-        // Thêm tài sản mới vào cache nếu không tìm thấy để cập nhật
-        inMemoryCache.add(updatedAsset);
-        persistCacheAsync();
+        if (!matchedInMemory && !inMemoryCache.isEmpty()) {
+            // Thêm tài sản mới vào cache nếu không tìm thấy để cập nhật
+            inMemoryCache.add(updatedAsset);
+        }
+
+        if (appContext == null) {
+            persistCacheAsync();
+        }
     }
 
     public synchronized void ensureDiskCacheLoaded() {
@@ -213,6 +218,9 @@ public final class AssetCacheStore {
         synchronized (this) {
             snapshot = new ArrayList<>(inMemoryCache);
             source = lastSource;
+        }
+        if (snapshot.isEmpty()) {
+            return;
         }
         cacheIoExecutor.execute(() -> {
             try {

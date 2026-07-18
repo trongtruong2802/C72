@@ -1,5 +1,6 @@
 package com.idocean.asset.data.repository;
 
+import com.idocean.asset.data.sync.AssetSyncRequestBuilder;
 import com.idocean.asset.model.AssetSyncQuery;
 
 import org.junit.Test;

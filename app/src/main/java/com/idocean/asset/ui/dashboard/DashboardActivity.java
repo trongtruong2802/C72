@@ -21,6 +21,7 @@ import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.progressindicator.LinearProgressIndicator;
 import com.google.android.material.textfield.MaterialAutoCompleteTextView;
+import com.google.android.material.textfield.TextInputLayout;
 import com.idocean.asset.data.repository.SessionRepository;
 import com.idocean.asset.ui.assets.AssetsActivity;
 import com.idocean.asset.ui.checkout.CheckoutActivity;
@@ -52,6 +53,10 @@ public class DashboardActivity extends AppCompatActivity implements DashboardCon
     private MaterialButton buttonSyncFiltered;
     private MaterialButton buttonSyncSession;
     private LinearProgressIndicator progressDashboardSync;
+    private TextInputLayout layoutDepartmentFilter;
+    private TextInputLayout layoutLocationFilter;
+    private TextInputLayout layoutAssetTypeFilter;
+    private TextView tvSyncPercentage;
     private ViewStub stubDashboardQuickActions;
     private View[] introViews;
     private boolean introAnimated;
@@ -121,6 +126,10 @@ public class DashboardActivity extends AppCompatActivity implements DashboardCon
         buttonSyncFiltered = findViewById(R.id.buttonDashboardSyncFiltered);
         buttonSyncSession = findViewById(R.id.buttonDashboardSyncSession);
         progressDashboardSync = findViewById(R.id.progressDashboardSync);
+        layoutDepartmentFilter = findViewById(R.id.layoutDashboardDepartmentFilter);
+        layoutLocationFilter = findViewById(R.id.layoutDashboardLocationFilter);
+        layoutAssetTypeFilter = findViewById(R.id.layoutDashboardAssetTypeFilter);
+        tvSyncPercentage = findViewById(R.id.tvDashboardSyncPercentage);
         stubDashboardQuickActions = findViewById(R.id.stubDashboardQuickActions);
 
         introViews = new View[]{
@@ -135,6 +144,24 @@ public class DashboardActivity extends AppCompatActivity implements DashboardCon
         buttonClearFilters.setOnClickListener(v -> {
             dashboardController.clearFilters();
             renderDashboardState();
+        });
+        layoutDepartmentFilter.setEndIconOnClickListener(v -> {
+            if (dashboardController != null) {
+                dashboardController.replaceSelectedDepartmentOptions(java.util.Collections.emptyList());
+                renderDashboardState();
+            }
+        });
+        layoutLocationFilter.setEndIconOnClickListener(v -> {
+            if (dashboardController != null) {
+                dashboardController.replaceSelectedLocationOptions(java.util.Collections.emptyList());
+                renderDashboardState();
+            }
+        });
+        layoutAssetTypeFilter.setEndIconOnClickListener(v -> {
+            if (dashboardController != null) {
+                dashboardController.replaceSelectedAssetTypeOptions(java.util.Collections.emptyList());
+                renderDashboardState();
+            }
         });
         actDepartmentFilter.setOnClickListener(v -> openDepartmentFilterDialog());
         actDepartmentFilter.setOnFocusChangeListener((v, hasFocus) -> {
@@ -183,11 +210,24 @@ public class DashboardActivity extends AppCompatActivity implements DashboardCon
             if (state.isProgressIndeterminate()) {
                 progressDashboardSync.setIndeterminate(true);
                 progressDashboardSync.setProgressCompat(0, false);
+                if (tvSyncPercentage != null) {
+                    tvSyncPercentage.setVisibility(View.GONE);
+                }
             } else {
                 progressDashboardSync.setIndeterminate(false);
                 int max = Math.max(state.getPreviewTotalCount(), 1);
+                int progress = Math.min(state.getPreviewLoadedCount(), max);
                 progressDashboardSync.setMax(max);
-                progressDashboardSync.setProgressCompat(Math.min(state.getPreviewLoadedCount(), max), true);
+                progressDashboardSync.setProgressCompat(progress, true);
+                if (tvSyncPercentage != null) {
+                    int percent = (progress * 100) / max;
+                    tvSyncPercentage.setText(percent + "%");
+                    tvSyncPercentage.setVisibility(View.VISIBLE);
+                }
+            }
+        } else {
+            if (tvSyncPercentage != null) {
+                tvSyncPercentage.setVisibility(View.GONE);
             }
         }
         setSyncButtonsEnabled(!state.isSyncing());
@@ -228,6 +268,15 @@ public class DashboardActivity extends AppCompatActivity implements DashboardCon
         actDepartmentFilter.setEnabled(enabled);
         etLocationFilter.setEnabled(enabled);
         etAssetTypeFilter.setEnabled(enabled);
+        if (layoutDepartmentFilter != null) {
+            layoutDepartmentFilter.setEnabled(enabled);
+        }
+        if (layoutLocationFilter != null) {
+            layoutLocationFilter.setEnabled(enabled);
+        }
+        if (layoutAssetTypeFilter != null) {
+            layoutAssetTypeFilter.setEnabled(enabled);
+        }
     }
 
     private void openDepartmentFilterDialog() {
@@ -327,6 +376,18 @@ public class DashboardActivity extends AppCompatActivity implements DashboardCon
         actDepartmentFilter.setText(dashboardController.getDepartmentFilterText(), false);
         etLocationFilter.setText(dashboardController.getLocationFilterText(), false);
         etAssetTypeFilter.setText(dashboardController.getAssetTypeFilterText(), false);
+        if (layoutDepartmentFilter != null) {
+            boolean hasDept = !dashboardController.getSelectedDepartmentOptions().isEmpty();
+            layoutDepartmentFilter.setEndIconVisible(hasDept);
+        }
+        if (layoutLocationFilter != null) {
+            boolean hasLoc = !dashboardController.getSelectedLocationOptions().isEmpty();
+            layoutLocationFilter.setEndIconVisible(hasLoc);
+        }
+        if (layoutAssetTypeFilter != null) {
+            boolean hasType = !dashboardController.getSelectedAssetTypeOptions().isEmpty();
+            layoutAssetTypeFilter.setEndIconVisible(hasType);
+        }
     }
 
     private void bindStatusChip(DashboardState state) {

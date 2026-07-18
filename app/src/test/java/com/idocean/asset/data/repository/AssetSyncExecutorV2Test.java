@@ -1,10 +1,12 @@
-package com.idocean.asset.data.repository;
+package com.idocean.asset.data.sync;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import com.google.gson.JsonParseException;
 
+import com.idocean.asset.data.sync.AssetSyncExecutorV2;
+import com.idocean.asset.data.sync.AssetSyncQueryV2;
 import org.junit.Test;
 
 import java.util.Collections;

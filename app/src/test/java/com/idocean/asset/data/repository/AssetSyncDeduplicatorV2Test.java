@@ -2,6 +2,7 @@ package com.idocean.asset.data.repository;
 
 import static org.junit.Assert.assertEquals;
 
+import com.idocean.asset.data.sync.AssetSyncDeduplicatorV2;
 import com.idocean.asset.model.Asset;
 
 import org.junit.Test;

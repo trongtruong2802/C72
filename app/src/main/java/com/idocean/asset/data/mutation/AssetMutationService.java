@@ -267,7 +267,6 @@ public final class AssetMutationService {
                 if (updateCacheOnSuccess && resolvedAsset != null) {
                     Asset originalIdentityAsset = requestDto == null ? resolvedAsset : requestDto.getOriginalAsset();
                     host.replaceCachedAsset(originalIdentityAsset, resolvedAsset);
-                    host.persistCacheAsync();
                 }
                 logRepository.logInfo(
                         logTag,

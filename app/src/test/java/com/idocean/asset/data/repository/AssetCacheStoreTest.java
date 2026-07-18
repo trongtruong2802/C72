@@ -1,7 +1,13 @@
 package com.idocean.asset.data.repository;
 
+import com.idocean.asset.data.repository.AssetFilterService;
+import com.idocean.asset.data.repository.AssetRepository;
+import com.idocean.asset.data.repository.DashboardMetricsRepository;
+import com.idocean.asset.data.repository.LogRepository;
+
 import static org.junit.Assert.assertEquals;
 
+import com.idocean.asset.data.cache.AssetCacheStore;
 import com.idocean.asset.model.Asset;
 
 import org.junit.Test;
@@ -17,7 +23,7 @@ public class AssetCacheStoreTest {
         AssetCacheStore cacheStore = newCacheStore();
         List<Asset> assets = Arrays.asList(
                 asset("TS-001", "E280001", "IT", "Alice", "Warehouse", "LAPTOP", "Dang su dung"),
-                asset("TS-002", "E280002", "HR", "Bob", "L\u1ea7u 5 - TT16", "MONITOR", "Cho phan bo")
+                asset("TS-002", "E280002", "HR", "Bob", "Lần 5 - TT16", "MONITOR", "Cho phan bo")
         );
 
         cacheStore.applyCacheSnapshot(assets, "API");
@@ -33,7 +39,7 @@ public class AssetCacheStoreTest {
     public void replaceCachedAsset_updatesExistingAssetByIdentity() {
         AssetCacheStore cacheStore = newCacheStore();
         Asset original = asset("TS-001", "E280001", "IT", "Alice", "Warehouse", "LAPTOP", "Dang su dung");
-        Asset updated = asset("TS-001", "E280001", "BOD", "Truong Vu", "L\u1ea7u 2 - TT16", "LAPTOP", "Dang su dung");
+        Asset updated = asset("TS-001", "E280001", "BOD", "Truong Vu", "Lần 2 - TT16", "LAPTOP", "Dang su dung");
 
         cacheStore.applyCacheSnapshot(Arrays.asList(original), "API");
         cacheStore.replaceCachedAsset(original, updated);
@@ -42,7 +48,7 @@ public class AssetCacheStoreTest {
         assertEquals(1, cachedAssets.size());
         assertEquals("BOD", cachedAssets.get(0).getDepartment());
         assertEquals("Truong Vu", cachedAssets.get(0).getAssignedUser());
-        assertEquals("L\u1ea7u 2 - TT16", cachedAssets.get(0).getLocation());
+        assertEquals("Lần 2 - TT16", cachedAssets.get(0).getLocation());
     }
 
     @Test
@@ -112,7 +118,6 @@ public class AssetCacheStoreTest {
 
     private static AssetCacheStore newCacheStore() {
         return new AssetCacheStore(
-                new AssetDiskCacheStore(),
                 new AssetFilterService(),
                 DashboardMetricsRepository.getInstance(),
                 LogRepository.getInstance(),
